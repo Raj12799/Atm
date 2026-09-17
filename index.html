@@ -1,0 +1,727 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ATM Field Tracker - Live Maps & Routing</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<style>
+:root {
+    --bg: #f4f7fb; --card: #fff; --text: #172033; --muted: #6b7280; 
+    --line: #e5e7eb; --primary: #0b57d0; --green: #16a34a; --orange: #f59e0b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 20px;}
+
+header { background: linear-gradient(135deg, #071b3a, #0b57d0); color: #fff; padding: 20px 15px; position: sticky; top: 0; z-index: 10; }
+.wrap { max-width: 1450px; margin: auto; }
+.top { display: flex; justify-content: space-between; gap: 15px; align-items: center; }
+.brand h1 { margin: 0; font-size: 22px; }
+.brand p { margin: 5px 0 0; opacity: 0.8; font-size: 12px; }
+
+.progress { margin-top: 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 10px 5px; text-align: center;}
+.stat b { display: block; font-size: 20px; }
+.stat span { font-size: 11px; opacity: 0.9; display: block; margin-top: 2px;}
+
+.header-actions { display: flex; gap: 8px; margin-top: 12px; }
+.btn { border: 0; border-radius: 8px; padding: 0 12px; height: 36px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px;}
+.all { background: #e8f0fe; color: #0b57d0; flex: 1; }
+.reset { background: #fee2e2; color: #b91c1c; flex: 1;}
+.btn-map { background: #d1fae5; color: #047857; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 13px; padding: 0 16px;}
+
+main { padding: 15px 12px; }
+.groups { display: grid; gap: 16px; }
+.group { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(20,35,60,0.03); }
+.ghead { padding: 12px 14px; background: #f8fafc; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+.ghead h2 { font-size: 14px; margin: 0; }
+.badge { font-size: 11px; padding: 4px 8px; border-radius: 99px; background: #e0e7ff; color: #3730a3; font-weight: 700; }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 1000px; }
+th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; vertical-align: middle; }
+th { font-size: 11px; text-transform: uppercase; color: var(--muted); background: #fff; }
+
+tr.done { opacity: 0.6; background: #f0fdf4; }
+tr.done td { text-decoration: line-through; }
+tr.done .copy-btn, tr.done .map { text-decoration: none; } 
+
+.donebox { width: 22px; height: 22px; accent-color: var(--green); cursor: pointer; }
+.map { display: inline-flex; border: none; cursor: pointer; background: #eef5ff; color: #0b57d0; padding: 8px 12px; border-radius: 8px; font-weight: bold; white-space: nowrap; font-size:13px; transition: 0.2s;}
+.map:active { transform: scale(0.95); }
+.mono { font-family: monospace; font-size: 13px; font-weight: bold;}
+.empty { padding: 30px; text-align: center; color: var(--muted); }
+
+.copy-btn { background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; transition: 0.2s;}
+.copy-btn:active { background: #e5e7eb; transform: scale(0.95); }
+.copy-btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
+
+.map-row { display: none; background: #f8fafc; }
+.map-row.active { display: table-row; }
+.inline-map-wrapper { position: relative; }
+.inline-map-container { height: 350px; width: 100%; border: 1px solid var(--line); }
+.inline-map-btns { position: absolute; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.in-map-btn { background: white; border: 2px solid rgba(0,0,0,0.2); width: 34px; height: 34px; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.15); font-size: 16px; transition: 0.1s;}
+.in-map-btn:active { background: #f4f4f4; transform: scale(0.95); }
+
+.custom-dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+.custom-dialog { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); text-align: center; max-width: 320px; width: 90%; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.custom-dialog h3 { margin: 0 0 10px; color: var(--text); font-size: 18px; }
+.custom-dialog p { font-size: 14px; margin-bottom: 20px; color: var(--muted); line-height: 1.4; }
+.custom-dialog-btns { display: flex; gap: 10px; justify-content: center; }
+.cd-btn { border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; flex: 1; }
+.cd-yes { background: var(--primary); color: white; }
+.cd-no { background: #f3f4f6; color: #374151; }
+
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px); background: #172033; color: white; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: bold; z-index: 100000; opacity: 0; transition: all 0.3s ease; pointer-events: none; box-shadow: 0 5px 15px rgba(0,0,0,0.3); white-space: nowrap;}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+#globalMapModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: white; z-index: 9999; flex-direction: column; }
+#globalMapModal.active { display: flex; }
+.modal-header { padding: 15px; background: var(--primary); color: white; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 2;}
+.modal-header h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;}
+.modal-close { background: rgba(255,255,255,0.2); border: none; color: white; font-size: 14px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+#globalMapContainer { flex: 1; width: 100%; position: relative; z-index: 1;}
+
+.map-search-bar { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 6px; border-radius: 12px; display: flex; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: 1px solid var(--line); width: 90%; max-width: 400px;}
+.map-search-bar input { flex: 1; padding: 10px 12px; border: none; border-radius: 8px; outline: none; font-size: 14px; background: #f8fafc;}
+.map-search-bar button { padding: 10px 16px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+.locate-me-btn { position: absolute; top: 70px; right: 15px; z-index: 1000; background: white; color: var(--primary); border: 2px solid rgba(0,0,0,0.2); width: 40px; height: 40px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: 0.2s;}
+.locate-me-btn:active { transform: scale(0.9); background: #f4f4f4;}
+
+.map-overlay-bottom { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
+.map-stats-box { background: white; padding: 12px 15px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 5px;}
+.stat-line { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: var(--text); }
+.stat-highlight { color: var(--primary); font-size: 14px; }
+.stat-highlight.orange { color: var(--orange); }
+
+.map-controls-row { background: white; padding: 10px 15px; border-radius: 99px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--line);}
+.route-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: bold; color: var(--text);}
+.route-toggle input { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+.route-clear { background: #fee2e2; color: #b91c1c; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; display: none; }
+
+.bike-icon { font-size: 26px; line-height: 1; text-align: center; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.5)); z-index: 10000 !important;}
+.leaflet-routing-container { display: none !important; } /* Hide text routing instructions */
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <h1>ATM Field Tracker</h1>
+        <p>Nashik RBO • Remaining Checklist</p>
+      </div>
+      <button class="btn btn-map" onclick="openGlobalMap()">🗺️ View All on Map</button>
+    </div>
+    <div class="progress">
+      <div class="stat"><b id="completed">0</b><span>Completed</span></div>
+      <div class="stat"><b id="remaining">0</b><span>Remaining</span></div>
+      <div class="stat"><b id="total">0</b><span>Total ATMs</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn all" onclick="markAll(true)">Mark all ✓</button>
+      <button class="btn reset" onclick="resetAll()">Reset ↺</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div id="groups" class="groups"></div>
+  </div>
+</main>
+
+<div id="globalMapModal">
+  <div class="modal-header">
+    <h2>🗺️ Live Map & Navigator</h2>
+    <button class="modal-close" onclick="closeGlobalMap()">❌ Close</button>
+  </div>
+  
+  <div id="globalMapContainer">
+    <div class="map-search-bar">
+      <input type="text" id="mapSearchInput" placeholder="lat,long (e.g. 19.9,73.8)">
+      <button onclick="searchMapLatLng()">Search</button>
+    </div>
+
+    <button class="locate-me-btn" onclick="focusGlobalMap()" title="Focus on my location">🎯</button>
+
+    <div class="map-overlay-bottom">
+        <div class="map-stats-box">
+            <div class="stat-line">
+                <span>🏍️ Travelled Today:</span>
+                <span id="uiTravelledDistance" class="stat-highlight">0.0 km</span>
+            </div>
+            <div class="stat-line" style="border-top: 1px solid #e5e7eb; padding-top: 5px; margin-top: 2px;">
+                <span>📍 Active Route:</span>
+                <span id="uiRouteStats" class="stat-highlight orange">No Route Selected</span>
+            </div>
+        </div>
+
+        <div class="map-controls-row">
+            <label class="route-toggle">
+                <input type="checkbox" id="routeModeToggle" onchange="toggleRouteMode()"> 
+                Enable Route
+            </label>
+            <button class="route-clear" id="clearRouteBtn" onclick="clearRoute()">Clear</button>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const data = [
+[3,1469,"S1NN001469015","ARTILLERY CENTRE","NASHIK ROAD","NASHIK (M Corp.), NASHIK",19.951,73.809,"NOT AVAILABLE","YES","NO","","YES","Group 1 — Artillery Centre"],
+[12,1469,"S1NN001469053","ARTILLERY CENTRE","NASHIK ROAD","NASHIK (M Corp.), NASHIK",19.951,73.809,"NOT AVAILABLE","YES","NO","","YES","Group 1 — Artillery Centre"],
+[13,1469,"U1BF001469062","Shop No. 04, Trimurti Complex, Near BOI ATM, Amrut Dham","Amrut Dham Chowk, (BD Kamgar Nagar) Panchavati","PANCHAVATI",20.01159,73.82621,"NO","YES","NO","","YES","Group 2 — Amrut Dham / Trimurti Complex"],
+[17,1469,"U1BF001469072","Shop No. 04, Trimurti Complex, Near BOI ATM, Amrut Dham","Amrut Dham Chowk, (BD Kamgar Nagar) Panchavati","PANCHAVATI",20.01159,73.82621,"NO","YES","NO","","YES","Group 2 — Amrut Dham / Trimurti Complex"],
+[29,6333,"S1BP006333010","Laxmivijay Building","Peth Phata, Panchavati, Nasik","Near Bhakti Dham Panchavati Nasik",19.96811,73.77506,"NO","YES","NO","","YES","Group 3 — Laxmivijay Building"],
+[30,6333,"S1BW006333011","Laxmivijay Building","Peth Phata, Panchavati, Nasik","Near Bhakti Dham Panchavati Nasik",19.96811,73.77506,"NO","YES","NO","","YES","Group 3 — Laxmivijay Building"],
+[31,6333,"S5NM006333621","Laxmivijay Building","Peth Phata, Panchavati, Nasik","Near Bhakti Dham Panchavati Nasik",19.96811,73.77506,"NO","YES","NO","","YES","Group 3 — Laxmivijay Building"],
+[33,7235,"S1BN007235004","NEAR LEKHANAGAR OFF NATIONAL HIGHWAY NO 3","NEW CIDCO NASIK","SBI CIDCO COLONY VILHOLI NASIK",20.001366,73.775733,"YES","YES","NO","","YES","Group 4 — Lekhanagar / Vilholi"],
+[76,7235,"S5NM007235621","NEAR LEKHANAGAR OFF NATIONAL HIGHWAY NO 3","NEW CIDCO NASIK","SBI CIDCO COLONY VILHOLI NASIK",20.001366,73.775733,"YES","YES","NO","","YES","Group 4 — Lekhanagar / Vilholi"],
+[77,7497,"S1BN007497002","Moti Villa, State Bank of India Gangapur Road Branch","Gangapur Road, Nasik","S.T. colony",20.00896,73.76775,"YES","YES","NO","","YES","Group 5 — Moti Villa, Gangapur Road"],
+[78,7497,"S1BN007497003","Moti Villa, State Bank of India Gangapur Road Branch","Gangapur Road, Nasik","S.T. colony",20.00896,73.76775,"YES","YES","NO","","YES","Group 5 — Moti Villa, Gangapur Road"],
+[79,7497,"S5NM007497623","Moti Villa, State Bank of India Gangapur Road Branch","Gangapur Road, Nasik","S.T. colony",20.00896,73.76775,"YES","YES","NO","","YES","Group 5 — Moti Villa, Gangapur Road"],
+[86,12508,"S1BN012508004",'"VIBHUTI" PLOT NO 1 SURVEY NO 501/1 NASIK AGRA ROAD',"AT ADGAON SHIVAR TAL CHANDVAD","SBI ADGAON BRANCH",20.026095,73.842154,"YES","YES","NO","","YES","Group 6 — Adgaon Shivar"],
+[87,12508,"S5NM012508621",'"VIBHUTI" PLOT NO 1 SURVEY NO 501/1 NASIK AGRA ROAD',"AT ADGAON SHIVAR TAL CHANDVAD","SBI ADGAON BRANCH",20.026095,73.842154,"YES","YES","NO","","YES","Group 6 — Adgaon Shivar"],
+[65,12510,"T1BW007235067","Matoshree complex","Gangapur Village","State Bank Of India Someshwar Branch Nasik",19.204342,72.840195,"YES","YES","NO","","YES","Group 7 — Matoshree Complex"],
+[88,12510,"S1BN012510001","Matoshree complex","Gangapur Village","State Bank Of India Someshwar Branch Nasik",19.204342,72.840195,"YES","YES","NO","","YES","Group 7 — Matoshree Complex"],
+[89,14443,"S1BP014443001","Khanzode complex","SBI Indiranagar Branch","Near Bapu Bunglow",19.96923,73.75616,"YES","YES","NO","","YES","Group 8 — Khanzode Complex"],
+[90,14443,"S5NM014443621","Khanzode complex","SBI Indiranagar Branch","Near Bapu Bunglow",19.96923,73.75616,"YES","YES","NO","","YES","Group 8 — Khanzode Complex"],
+[91,16373,"S1BN016373001","SBI Dwaraka Circle Branch","Times Square building","Manekshaw Nagar, Nasik",19.96811,73.77506,"YES","YES","NO","","YES","Group 9 — SBI Dwaraka Circle"],
+[92,16373,"S5NL016373621","SBI Dwaraka Circle Branch","Times Square building","Manekshaw Nagar, Nasik",19.96811,73.77506,"YES","YES","NO","","YES","Group 9 — SBI Dwaraka Circle"],
+[5,1469,"S1NN001469017","Vishal Petrol Pump","Untwadi Road, Shivshakti Nagar","Nashik Maharashtra",19.986633,73.758441,"NO","YES","NO","","YES","Single Location"],
+[9,1469,"S1NN001469028","493/267, Ashok Nagar","Gangapur Satpur Link Road","NASHIK (M Corp.), NASHIK",19.9935,73.7246,"NOT AVAILABLE","YES","NO","","YES","Single Location"],
+[25,6140,"T1BH001469122","Essar Petrol Pump","Satpur-Ambad link road","Satpur-Ambad link road, Nasik",19.9975,73.7898,"NO","YES","NO","","YES","Single Location"],
+[32,7235,"U1BF007235002","Shop No 04, Skyline Majestic","Kamal Nagar, Hirawadi","Panchvati Nashik",20.018084,73.814865,"NOT AVAILABLE","YES","NO","","YES","Single Location"],
+[37,7235,"U1BF007235010","Nirmal datt apartment","near sakshi ganesh mandir","bhadrakali nashik",20.001909,73.790061,"NOT AVAILABLE","NO","","","YES","Single Location"],
+[39,7235,"U1BF007235012","Shop No. 10, Sadashiv Complex","Near Bus Stop, Adgaon, Nashik","Near Bus Stop",20.035,19.98097,"NO","YES","NO","","YES","Single Location"],
+[40,7235,"U1BF007235015","Shop No.02, Sai Sahawas Apartment","Opp Pathardi Police Chowki","Prashant Nagar, Pathardi Phata",19.94989,73.75783,"NO","YES","NO","","YES","Single Location"],
+[48,7235,"U1BF007235034","Shop no. 2, sakshi bunglow","saint charvak chowk, Pethe nagar road","Indira nagar, Nashik",19.972,73.781,"NO","YES","NO","","YES","Single Location"],
+[56,7235,"U1BF007235052","Swami Sankul apartment","Painth Road","Near RTO, Nashik",19.88513,75.36165,"NO","YES","NO","","YES","Single Location"],
+[59,7235,"U1BF007235056","shop no7, raj palace","opposite mauli lawns","kamatwade cidco nashik",19.972511,73.747032,"NOT AVAILABLE","YES","NO","","YES","Single Location"],
+[60,21877,"T1NW007235059","SBI Jehan Circle Branch","Jehan Circle, Gangapur Road","Near Savarkar Nagar Nasik Dist.Nasik",20.0109,73.739,"NO","YES","NO","","YES","Single Location"],
+[61,16324,"T1NW007235060","SBI Ashoknagar Branch","Kedar tower Opp Mahindra Material Gate","Kedar tower Opp Mahindra Material Gate",19.9975,73.7898,"NO","YES","NO","","YES","Single Location"],
+[62,61476,"T1NW007235064","SBI Sahyadri Agro Retails Mohadi Br.","Gat 314/212 Mohadi","Sahyadri Agro Retails Ltd.",20.08229,73.91636,"YES","YES","NO","","YES","Single Location"],
+[73,1469,"U1BF007235087","NEAR SEVA MEDICAL","CIDCO COLLEGE","UTTAMNAGAR NASHIK",19.969602,73.754181,"NO","YES","NO","","YES","Single Location"],
+[93,17464,"S5NM017464621","SURYA AVENUE","PATHARDI PHATA","BELOW SAPTASHRUNGI HOSPITAL",20.107263,73.946947,"NO","YES","NO","","YES","Single Location"],
+[101,61401,"S1BN061401001","P 24 SATPUR INDUSTRIAL AREA","TRIMBAK ROAD NASHIK","OPP SAKAL PRESS M.I.D.C.",19.97998,73.71037,"NO","YES","NO","","YES","Single Location"],
+[102,61401,"S5NL061401622","P 24 SATPUR INDUSTRIAL AREA","TRIMBAK ROAD NASHIK","OPP SAKAL PRESS M.I.D.C.",19.97998,73.71037,"YES","YES","NO","","YES","Single Location"]
+];
+
+const saved = JSON.parse(localStorage.getItem("atmDone")||"{}");
+const groupsEl = document.getElementById("groups");
+
+// Storage for Today's Travel Log
+const todayStr = new Date().toISOString().split('T')[0];
+let travelLog = JSON.parse(localStorage.getItem("travelLog") || "{}");
+if (travelLog.date !== todayStr) {
+    travelLog = { date: todayStr, distance: 0, path: [] };
+    localStorage.setItem("travelLog", JSON.stringify(travelLog));
+}
+
+const inlineMaps = {};
+let inlineUserMarkers = {}; 
+let globalMap = null;
+let liveLocationMarker = null; 
+let watchPositionId = null;
+let routingControl = null;
+let routeWaypoints = [];
+let routeModeActive = false;
+let userLatLng = null;
+let lastRecordedLatLng = null; 
+let travelledPolyline = null; 
+let searchMarker = null;
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+
+function generateRowHTML(r, isDone) {
+   const atmId = esc(r[2]);
+   const lat = r[6], lng = r[7];
+   
+   const combinedAddressArr = [r[3], r[4], r[5]].filter(Boolean);
+   const combinedAddress = esc(combinedAddressArr.join(", "));
+   const latLngStr = `${lat},${lng}`;
+   
+   return `<tr class="${isDone?'done':''}" data-id="${atmId}">
+     <td><input class="donebox" type="checkbox" ${isDone?"checked":""} onchange="handleCheck(this, '${atmId}')"></td>
+     <td>${r[0]}</td>
+     <td><button class="map" onclick="toggleInlineMap('${atmId}', ${lat}, ${lng}, this)">📍 Expand Map</button></td>
+     <td class="mono">
+        <div style="margin-bottom:5px; font-size:14px;">${atmId}</div>
+        <button class="copy-btn" onclick="copyTextFallback('${atmId}')">📋 Copy ID</button>
+     </td>
+     <td>
+       <div style="margin-bottom:5px;">${combinedAddress}</div>
+       <button class="copy-btn" onclick="copyTextFallback('${combinedAddress}')">📋 Copy Address</button>
+     </td>
+     <td>
+       <div style="margin-bottom:5px;">${latLngStr}</div>
+       <button class="copy-btn" onclick="copyTextFallback('${latLngStr}')">📋 Copy Lat,Long</button>
+     </td>
+   </tr>
+   <tr id="map-row-${atmId}" class="map-row">
+     <td colspan="6">
+       <div class="inline-map-wrapper">
+         <div id="inline-map-${atmId}" class="inline-map-container"></div>
+         <div class="inline-map-btns">
+            <button class="in-map-btn" title="Focus on my location" onclick="focusInlineMap('${atmId}')">🎯</button>
+            <button class="in-map-btn" title="Open Full Screen Map" onclick="openGlobalMapCenter(${lat}, ${lng})">🔲</button>
+         </div>
+       </div>
+     </td>
+   </tr>`;
+}
+
+function render(){
+ const groups = {};
+ const completedArr = [];
+ 
+ // Separate items into their pending groups, and globally collect all completed items
+ data.forEach(r => {
+   const isDone = !!saved[r[2]];
+   (groups[r[13]] ??= []).push(r); // push to group to keep total count tracker correct
+   if(isDone) completedArr.push(r);
+ });
+ 
+ groupsEl.innerHTML = "";
+ 
+ Object.entries(groups).forEach(([g, arr]) => {
+  const pendingArr = arr.filter(r => !saved[r[2]]);
+  const doneCount = arr.length - pendingArr.length;
+  
+  const box = document.createElement("section"); box.className="group";
+  
+  let html = `<div class="ghead"><h2>${esc(g)}</h2><span class="badge">${doneCount}/${arr.length} completed</span></div>`;
+
+  if (pendingArr.length > 0) {
+      html += `<div class="tablewrap"><table><thead><tr>
+      <th>✓</th><th>SR NO</th><th>MAP LINK</th><th>ATM ID</th><th>LOCATION DETAILS (BUILDING, AREA, LANDMARK)</th><th>LAT,LONG</th>
+      </tr></thead><tbody>`;
+      
+      pendingArr.forEach(r => {
+          html += generateRowHTML(r, false);
+      });
+      html += `</tbody></table></div>`;
+  } else {
+      // If no pending items in this group
+      html += `<div class="empty" style="padding: 15px; color: var(--green); font-weight: bold; background: #f0fdf4;">🎉 All ATMs in this group are completed!</div>`;
+  }
+  
+  box.innerHTML = html;
+  groupsEl.appendChild(box);
+ });
+ 
+ // Render the Completed Section at the bottom if there are any
+ if (completedArr.length > 0) {
+     const compBox = document.createElement("section");
+     compBox.className = "group";
+     compBox.style.marginTop = "30px";
+     compBox.style.border = "2px solid var(--green)"; // highlight boundary
+     
+     let compHtml = `<div class="ghead" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+         <h2 style="color: var(--green);">✅ Completed ATMs</h2>
+         <span class="badge" style="background: var(--green); color: white;">${completedArr.length} Total</span>
+     </div>
+     <div class="tablewrap"><table><thead><tr>
+      <th>✓</th><th>SR NO</th><th>MAP LINK</th><th>ATM ID</th><th>LOCATION DETAILS</th><th>LAT,LONG</th>
+     </tr></thead><tbody>`;
+     
+     completedArr.forEach(r => {
+         compHtml += generateRowHTML(r, true);
+     });
+     
+     compHtml += `</tbody></table></div>`;
+     compBox.innerHTML = compHtml;
+     groupsEl.appendChild(compBox);
+ }
+ 
+ if(!groupsEl.children.length) groupsEl.innerHTML='<div class="empty">No ATM found.</div>';
+ updateStats();
+}
+
+function showToast(msg) {
+  let toast = document.getElementById('app-toast');
+  if(!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function showConfirm(title, msg, onYes, onNo) {
+  const overlay = document.createElement('div');
+  overlay.className = 'custom-dialog-overlay';
+  overlay.innerHTML = `
+      <div class="custom-dialog">
+          <h3>${title}</h3>
+          <p>${msg}</p>
+          <div class="custom-dialog-btns">
+              <button class="cd-btn cd-yes" id="cd-yes-btn">Yes</button>
+              <button class="cd-btn cd-no" id="cd-no-btn">Cancel</button>
+          </div>
+      </div>
+  `;
+  document.body.appendChild(overlay);
+  
+  document.getElementById('cd-yes-btn').onclick = () => { onYes(); document.body.removeChild(overlay); };
+  document.getElementById('cd-no-btn').onclick = () => { if(onNo) onNo(); document.body.removeChild(overlay); };
+}
+
+window.copyTextFallback = function(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = 0;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+      document.execCommand("copy");
+      showToast("✅ Copied successfully!");
+  } catch (err) {
+      showToast("❌ Failed to copy!");
+  }
+  document.body.removeChild(ta);
+}
+
+function toggle(id, v) {
+  saved[id] = v;
+  if(!v) delete saved[id];
+  localStorage.setItem("atmDone", JSON.stringify(saved));
+  render(); // Re-render to move item between groups
+}
+
+function handleCheck(checkbox, atmId) {
+  const isChecked = checkbox.checked;
+  const action = isChecked ? "Complete" : "Un-mark";
+  checkbox.checked = !isChecked; // Revert visually immediately until confirmed
+  
+  showConfirm("Confirm Action", `Do you want to ${action} ATM ${atmId}?`, () => {
+     toggle(atmId, isChecked);
+     showToast(`ATM ${atmId} updated!`);
+  }, () => {});
+}
+
+function markAll(v){
+  showConfirm("Mark All?", v ? "Do you want to mark ALL ATMs as completed?" : "Do you want to unmark ALL ATMs?", () => {
+    // Collect all IDs
+    data.forEach(r => {
+      let id = r[2]; saved[id] = v; if(!v) delete saved[id];
+    });
+    localStorage.setItem("atmDone", JSON.stringify(saved));
+    render();
+    showToast(v ? "All Marked Completed" : "All Reset");
+  });
+}
+
+function resetAll(){
+  showConfirm("Reset Tracker?", "Are you sure you want to erase all progress? This cannot be undone.", () => {
+    localStorage.removeItem('atmDone');
+    location.reload();
+  });
+}
+
+function updateStats(){
+  const doneCount = data.filter(r => saved[r[2]]).length;
+  document.getElementById("completed").textContent = doneCount;
+  document.getElementById("remaining").textContent = data.length - doneCount;
+  document.getElementById("total").textContent = data.length;
+}
+
+function getLiveLocationPopupContent() {
+    if (!userLatLng) return "Fetching...";
+    const lat = userLatLng.lat.toFixed(6);
+    const lng = userLatLng.lng.toFixed(6);
+    const exactStr = `${lat},${lng}`;
+    return `
+        <div style="text-align:center; font-family:Inter,sans-serif; min-width:140px;">
+            <b style="font-size:14px; color:var(--primary);">🏍️ My Live Location</b><br>
+            <span style="font-size:12px; color:var(--muted); margin:6px 0; display:block;">${exactStr}</span>
+            <button class="copy-btn primary" onclick="window.copyTextFallback('${exactStr}')" style="width:100%; justify-content:center;">📋 Copy Exact Lat,Long</button>
+        </div>
+    `;
+}
+
+function initGpsTracking() {
+  if (!navigator.geolocation) return;
+  if (watchPositionId) return; 
+
+  watchPositionId = navigator.geolocation.watchPosition(
+    (position) => {
+      userLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+      
+      // Update Global Map Marker
+      if (globalMap) {
+          if (!liveLocationMarker) {
+              const bikeIcon = L.divIcon({ className: 'bike-icon', html: '🏍️', iconSize: [30, 30], iconAnchor: [15, 15] });
+              liveLocationMarker = L.marker(userLatLng, { icon: bikeIcon, zIndexOffset: 1000 }).addTo(globalMap);
+              liveLocationMarker.bindPopup(getLiveLocationPopupContent());
+          } else {
+              liveLocationMarker.setLatLng(userLatLng);
+              if(liveLocationMarker.isPopupOpen()) liveLocationMarker.getPopup().setContent(getLiveLocationPopupContent());
+          }
+      }
+
+      // Update All Inline Map Markers
+      for (const atmId in inlineMaps) {
+          const map = inlineMaps[atmId];
+          if (!inlineUserMarkers[atmId]) {
+              const bikeIcon = L.divIcon({ className: 'bike-icon', html: '🏍️', iconSize: [26, 26], iconAnchor: [13, 13] });
+              inlineUserMarkers[atmId] = L.marker(userLatLng, { icon: bikeIcon, zIndexOffset: 1000 }).addTo(map);
+              inlineUserMarkers[atmId].bindPopup(getLiveLocationPopupContent());
+          } else {
+              inlineUserMarkers[atmId].setLatLng(userLatLng);
+              if(inlineUserMarkers[atmId].isPopupOpen()) inlineUserMarkers[atmId].getPopup().setContent(getLiveLocationPopupContent());
+          }
+      }
+      
+      // Calculate Distance Travelled Today
+      if (lastRecordedLatLng) {
+          const distMoved = lastRecordedLatLng.distanceTo(userLatLng); 
+          if (distMoved > 10) { 
+              travelLog.distance += distMoved;
+              travelLog.path.push([userLatLng.lat, userLatLng.lng]);
+              localStorage.setItem("travelLog", JSON.stringify(travelLog));
+              
+              if(document.getElementById('uiTravelledDistance')) {
+                document.getElementById('uiTravelledDistance').textContent = (travelLog.distance / 1000).toFixed(2) + ' km';
+              }
+              
+              if (travelledPolyline) {
+                  travelledPolyline.setLatLngs(travelLog.path);
+              }
+              lastRecordedLatLng = userLatLng;
+          }
+      } else {
+          lastRecordedLatLng = userLatLng; 
+      }
+      
+      // Update Routing Starting Point Automatically
+      if (routeModeActive && routeWaypoints.length > 0) {
+        routeWaypoints[0] = userLatLng;
+        if(routingControl) routingControl.setWaypoints(routeWaypoints);
+      }
+    },
+    (err) => console.warn(`GPS Error:`, err),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 5000 }
+  );
+}
+
+function toggleInlineMap(atmId, lat, lng, btn) {
+  const row = document.getElementById(`map-row-${atmId}`);
+  const isOpening = !row.classList.contains('active');
+  
+  // Close others
+  document.querySelectorAll('.map-row.active').forEach(el => {
+    el.classList.remove('active');
+    const b = el.previousElementSibling.querySelector('.map');
+    if(b) b.innerHTML = "📍 Expand Map";
+  });
+
+  if (isOpening) {
+    row.classList.add('active');
+    btn.innerHTML = "❌ Close Map";
+    
+    if (!inlineMaps[atmId]) {
+      const mapContainer = document.getElementById(`inline-map-${atmId}`);
+      const map = L.map(mapContainer).setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+      
+      L.marker([lat, lng]).addTo(map).bindPopup(`<b>ATM: ${atmId}</b><br>Lat: ${lat}<br>Lng: ${lng}`).openPopup();
+      inlineMaps[atmId] = map;
+      
+      if (userLatLng) {
+          const bikeIcon = L.divIcon({ className: 'bike-icon', html: '🏍️', iconSize: [26, 26], iconAnchor: [13, 13] });
+          inlineUserMarkers[atmId] = L.marker(userLatLng, { icon: bikeIcon, zIndexOffset: 1000 }).addTo(map);
+          inlineUserMarkers[atmId].bindPopup(getLiveLocationPopupContent());
+      }
+    }
+    setTimeout(() => { inlineMaps[atmId].invalidateSize(); }, 200);
+    initGpsTracking(); 
+  } else {
+    row.classList.remove('active');
+    btn.innerHTML = "📍 Expand Map";
+  }
+}
+
+function focusInlineMap(atmId) {
+    if (userLatLng && inlineMaps[atmId]) {
+        inlineMaps[atmId].setView(userLatLng, 17);
+        showToast("🎯 Focused on your location");
+    } else {
+        showToast("⏳ Fetching GPS...");
+        initGpsTracking();
+        let checkGPS = setInterval(() => {
+            if (userLatLng && inlineMaps[atmId]) {
+                inlineMaps[atmId].setView(userLatLng, 17);
+                clearInterval(checkGPS);
+            }
+        }, 500);
+        setTimeout(() => clearInterval(checkGPS), 5000); 
+    }
+}
+
+function openGlobalMapCenter(lat, lng) {
+    openGlobalMap();
+    setTimeout(() => {
+        if(globalMap) globalMap.setView([lat, lng], 17);
+    }, 400); 
+}
+
+function openGlobalMap() {
+  const modal = document.getElementById('globalMapModal');
+  modal.classList.add('active');
+  
+  if (!globalMap) {
+    globalMap = L.map('globalMapContainer', { zoomControl: false }).setView([19.9975, 73.7898], 12);
+    L.control.zoom({ position: 'topright' }).addTo(globalMap); 
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSMap' }).addTo(globalMap);
+    
+    routingControl = L.Routing.control({
+      waypoints: [],
+      routeWhileDragging: false,
+      show: false, 
+      createMarker: function() { return null; },
+      lineOptions: { styles: [{ color: '#f59e0b', weight: 6, opacity: 0.9 }] },
+      addWaypoints: false
+    }).addTo(globalMap);
+
+    routingControl.on('routesfound', function(e) {
+      const routes = e.routes;
+      const summary = routes[0].summary;
+      const distKm = (summary.totalDistance / 1000).toFixed(1);
+      const timeMin = Math.round(summary.totalTime / 60);
+      document.getElementById('uiRouteStats').innerHTML = `<b>${distKm} km</b> (~${timeMin} min)`;
+      document.getElementById('uiRouteStats').style.color = '#f59e0b';
+    });
+
+    travelledPolyline = L.polyline(travelLog.path, {color: '#dc2626', weight: 5, opacity: 0.7, dashArray: '10, 10'}).addTo(globalMap);
+  }
+
+  document.getElementById('uiTravelledDistance').textContent = (travelLog.distance / 1000).toFixed(2) + ' km';
+
+  const bounds = [];
+  globalMap.eachLayer((layer) => {
+    if (layer instanceof L.Marker && layer !== liveLocationMarker && layer !== searchMarker) {
+      globalMap.removeLayer(layer);
+    }
+  });
+
+  data.forEach(r => {
+    const lat = r[6], lng = r[7], atmId = r[2], done = !!saved[r[2]];
+    if(lat && lng) {
+      bounds.push([lat, lng]);
+      const iconUrl = done ? 
+        'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png' : 
+        'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png';
+        
+      const marker = L.marker([lat, lng], {
+        icon: new L.Icon({
+          iconUrl: iconUrl, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        })
+      }).addTo(globalMap);
+      
+      marker.bindPopup(`<b>${atmId}</b><br>${r[3]}<br><i>Tap to Route (if active)</i>`);
+      marker.on('click', () => { if (routeModeActive) addPointToRoute(L.latLng(lat, lng)); });
+    }
+  });
+
+  if (bounds.length > 0) globalMap.fitBounds(bounds, { padding: [40, 40] });
+
+  initGpsTracking(); 
+  
+  if(userLatLng && !liveLocationMarker) {
+      const bikeIcon = L.divIcon({ className: 'bike-icon', html: '🏍️', iconSize: [30, 30], iconAnchor: [15, 15] });
+      liveLocationMarker = L.marker(userLatLng, { icon: bikeIcon, zIndexOffset: 1000 }).addTo(globalMap);
+      liveLocationMarker.bindPopup(getLiveLocationPopupContent());
+  }
+
+  setTimeout(() => { globalMap.invalidateSize(); }, 300);
+}
+
+function closeGlobalMap() {
+  document.getElementById('globalMapModal').classList.remove('active');
+}
+
+function focusGlobalMap() {
+  if (userLatLng && globalMap) {
+    globalMap.setView(userLatLng, 17);
+    showToast("🎯 Focused on your location");
+  } else {
+    showToast("⏳ Fetching GPS...");
+    initGpsTracking();
+  }
+}
+
+function searchMapLatLng() {
+  const val = document.getElementById('mapSearchInput').value;
+  const parts = val.split(',');
+  if(parts.length === 2) {
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      if(!isNaN(lat) && !isNaN(lng) && globalMap) {
+          if(searchMarker) globalMap.removeLayer(searchMarker);
+          searchMarker = L.marker([lat, lng], {
+              icon: L.divIcon({className: 'search-pin', html: '<div style="font-size:30px; text-align:center;">📌</div>', iconSize: [30,30], iconAnchor: [15,30]})
+          }).addTo(globalMap);
+          searchMarker.bindPopup(`<b>Searched Location</b><br>${lat}, ${lng}`).openPopup();
+          globalMap.setView([lat, lng], 17);
+      } else {
+          showToast("❌ Invalid numbers!");
+      }
+  } else {
+      showToast("❌ Format: lat,long (e.g. 19.9,73.8)");
+  }
+}
+
+function toggleRouteMode() {
+  routeModeActive = document.getElementById('routeModeToggle').checked;
+  document.getElementById('clearRouteBtn').style.display = routeModeActive ? 'block' : 'none';
+  
+  if (routeModeActive) {
+    showToast("📍 Route Mode ON: Tap ATM pins to build route!");
+    document.getElementById('uiRouteStats').innerHTML = "Select a point on map";
+    document.getElementById('uiRouteStats').style.color = 'var(--text)';
+    if (userLatLng) routeWaypoints = [userLatLng];
+    else routeWaypoints = [];
+  } else {
+    clearRoute();
+  }
+}
+
+function addPointToRoute(latLng) {
+  if (routeWaypoints.length === 0 && userLatLng) routeWaypoints.push(userLatLng);
+  routeWaypoints.push(latLng);
+  routingControl.setWaypoints(routeWaypoints);
+  showToast("📌 Stop added to route!");
+  document.getElementById('uiRouteStats').innerHTML = "Calculating...";
+}
+
+function clearRoute() {
+  routeWaypoints = userLatLng ? [userLatLng] : [];
+  routingControl.setWaypoints([]);
+  document.getElementById('uiRouteStats').innerHTML = "No Route Selected";
+  document.getElementById('uiRouteStats').style.color = 'var(--muted)';
+  showToast("🗑️ Route Cleared");
+}
+
+render();
+</script>
+</body>
+</html>
