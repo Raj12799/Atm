@@ -6,6 +6,13 @@
     <title>REVO</title>
     <link rel="manifest" id="app-manifest">
 
+<meta name="application-name" content="ATM Tracker Pro">
+<meta name="apple-mobile-web-app-title" content="ATMTracker">
+<meta name="theme-color" content="#2563eb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 <script>
 (function () {
     const svg = `
@@ -26,7 +33,8 @@
         </g>
     </svg>`;
 
-    const iconURL = "data:image/svg+xml;charset=utf-8," +
+    const iconURL =
+        "data:image/svg+xml;charset=utf-8," +
         encodeURIComponent(svg);
 
     const manifest = {
@@ -35,13 +43,15 @@
         short_name: "ATMTracker",
         start_url: location.href,
         display: "standalone",
+        orientation: "portrait",
         background_color: "#f8fafc",
-        theme_color: "#3b82f6",
+        theme_color: "#2563eb",
         icons: [
             {
                 src: iconURL,
                 sizes: "512x512",
-                type: "image/svg+xml"
+                type: "image/svg+xml",
+                purpose: "any"
             }
         ]
     };
@@ -51,8 +61,9 @@
         { type: "application/manifest+json" }
     );
 
-    document.getElementById("app-manifest").href =
-        URL.createObjectURL(blob);
+    const manifestURL = URL.createObjectURL(blob);
+
+    document.getElementById("app-manifest").href = manifestURL;
 })();
 </script>
     <meta name="theme-color" content="#3b82f6">
