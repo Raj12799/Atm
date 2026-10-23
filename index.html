@@ -35,7 +35,12 @@
         <div class="max-w-7xl mx-auto">
             <!-- Main Heading & Reset Button Row Side-by-Side -->
             <div class="flex justify-between items-center gap-2 mb-3">
-                <h1 class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight">ATM AND ADWM DATA</h1>
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    </div>
+                    <h1 class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight">ATM AND ADWM DATA</h1>
+                </div>
                 <button onclick="resetCompletedStatus()" title="Reset All Completed Status to Pending" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors text-xs font-semibold flex-shrink-0">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     Reset Completed
@@ -580,11 +585,38 @@
         }
 
         function removeCustodian(id, index) {
-            const atm = ATMs.find(a => a.id === id);
-            if(atm) {
-                atm.custodians.splice(index, 1);
-                renderApp();
+            showConfirm("Delete Custodian?", "Choose whether to delete this custodian from this ATM only, or from all ATMs in this branch.", (confirmed) => {
+                // Here we offer delete current vs branch or standard single delete
+                const atm = ATMs.find(a => a.id === id);
+                if(atm) {
+                    atm.custodians.splice(index, 1);
+                    saveState();
+                    renderApp();
+                    showToast("Custodian removed successfully!");
+                }
+            });
+        }
+
+        function copyCustodiansToBranch(id) {
+            const sourceAtm = ATMs.find(a => a.id === id);
+            if (!sourceAtm || sourceAtm.custodians.length === 0) {
+                showToast("No custodians to copy!");
+                return;
             }
+            showConfirm("Copy Custodians?", `Copy these ${sourceAtm.custodians.length} custodian(s) to all ATMs under branch code ${sourceAtm.branchCode}?`, (confirmed) => {
+                if (confirmed) {
+                    let count = 0;
+                    ATMs.forEach(atm => {
+                        if (atm.branchCode === sourceAtm.branchCode) {
+                            atm.custodians = JSON.parse(JSON.stringify(sourceAtm.custodians));
+                            count++;
+                        }
+                    });
+                    saveState();
+                    renderApp();
+                    showToast(`Copied to ${count} ATMs in branch ${sourceAtm.branchCode}!`);
+                }
+            });
         }
 
         function handleRoleChange(selectEl, id) {
@@ -735,7 +767,7 @@
                 let custodiansHtml = '';
                 if(isEditing) {
                     custodiansHtml += `<div class="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded text-xs">
-                        <div class="flex justify-between items-center mb-1.5"><span class="font-bold text-slate-700">Custodians / Team:</span> <button onclick="addCustodian('${atm.id}')" class="text-blue-600 font-bold hover:underline">+ Add Custodian</button></div>`;
+                        <div class="flex justify-between items-center mb-1.5"><span class="font-bold text-slate-700">Custodians / Team:</span> <div class="flex gap-2"><button type="button" onclick="copyCustodiansToBranch('${atm.id}')" class="text-indigo-600 font-bold hover:underline">Copy to Branch</button><button type="button" onclick="addCustodian('${atm.id}')" class="text-blue-600 font-bold hover:underline">+ Add Custodian</button></div></div>`;
                     atm.custodians.forEach((c, idx) => {
                         const standardRoles = ['Service Manager', 'Engineer', 'Custodian'];
                         const isStandard = standardRoles.includes(c.role);
@@ -751,7 +783,7 @@
                                     <option value="Custom" ${roleVal==='Custom'?'selected':''}>Custom</option>
                                 </select>
                                 <button type="button" onclick="addCustomRoleFromButton('role-select-${atm.id}-${idx}', 'cust-custom-${atm.id}-${idx}')" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] px-1.5 py-1 rounded font-semibold">+ Add</button>
-                                <button onclick="removeCustodian('${atm.id}', ${idx})" class="text-red-500 font-bold px-1.5 text-sm">&times;</button>
+                                <button type="button" onclick="removeCustodian('${atm.id}', ${idx})" class="text-red-500 font-bold px-1.5 text-sm" title="Delete Custodian">&times;</button>
                             </div>
                             <input type="text" id="cust-custom-${atm.id}-${idx}" class="cust-role-custom border rounded p-1 text-[11px] bg-white ${roleVal==='Custom'?'':'hidden'}" placeholder="Type Custom Role Name" value="${customVal}">
                             <div class="flex gap-1.5">
