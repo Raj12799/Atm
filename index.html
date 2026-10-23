@@ -27,7 +27,7 @@
                 "src": iconDataUrl,
                 "sizes": "512x512",
                 "type": "image/svg+xml",
-                "purpose": "any"
+                "purpose": "any maskable"
             }]
         };
         const manifestBlobUrl = URL.createObjectURL(new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' }));
@@ -89,10 +89,6 @@
                     <h1 class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight">ATM AND ADWM DATA</h1>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
-                    <button id="installAppBtn" onclick="installApp()" class="hidden items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors text-xs font-semibold">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        Install App
-                    </button>
                     <button onclick="resetCompletedStatus()" title="Reset All Completed Status to Pending" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors text-xs font-semibold">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         Reset Completed
@@ -231,28 +227,6 @@
     </div>
 
     <script>
-        let deferredPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            const btn = document.getElementById('installAppBtn');
-            if(btn) btn.classList.remove('hidden');
-        });
-
-        function installApp() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        showToast('App installed successfully!');
-                    }
-                    deferredPrompt = null;
-                });
-            } else {
-                showToast('To install: Tap browser menu (⋮) -> "Install app" or "Add to Home screen"');
-            }
-        }
-
         const rawMasterData = [
             ["U1BF001469009", "matched", "Onkareshwar Apt Shop 06", "Ekta Nagar Borgad", "Dindori Road Nashik", "20.05505", "73.79938", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
             ["U1BF001469011", "non-alloted", "Shop no. 2, Dehbur Apt", "NASHIK ROAD", "Near Bytco Point", "19.95407", "73.83717", "NO", "YES", "NO", "YES", "Phase 17"],
