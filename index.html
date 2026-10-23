@@ -13,8 +13,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Full bleed blue background with white ATM icon for robust PNG generation
-            const maskableSvgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2563eb"/><g fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" transform="translate(106, 106) scale(12.5)"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></g></svg>`;
+            // Full bleed blue background with properly scaled white ATM icon
+            const maskableSvgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+                <rect width="512" height="512" fill="#2563eb"/>
+                <g transform="translate(128, 128) scale(10.66)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </g>
+            </svg>`;
             
             const img = new Image();
             img.onload = () => {
@@ -30,16 +35,14 @@
                 const manifestObj = {
                     "name": "ATM Tracker Pro",
                     "short_name": "ATMTracker",
-                    "start_url": ".",
+                    "start_url": window.location.href.split('?')[0] || ".",
                     "display": "standalone",
                     "background_color": "#2563eb",
                     "theme_color": "#2563eb",
-                    "icons": [{
-                        "src": pngDataUrl,
-                        "sizes": "512x512",
-                        "type": "image/png",
-                        "purpose": "any maskable"
-                    }]
+                    "icons": [
+                        { "src": pngDataUrl, "sizes": "512x512", "type": "image/png", "purpose": "any" },
+                        { "src": pngDataUrl, "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+                    ]
                 };
                 
                 // Using a Data URI for the manifest ensures it's always accessible and avoids Blob URL bugs
