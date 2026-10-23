@@ -12,36 +12,50 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script>
-        // Data URI SVG icon with explicit solid blue background (#2563eb) and white ATM icon
-        const svgIconStr = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="110" fill="#2563eb"/><g fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" transform="translate(96, 96) scale(13.33)"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></g></svg>`;
-        const iconDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIconStr);
-
-        const manifestObj = {
-            "name": "ATM Tracker Pro",
-            "short_name": "ATMTracker",
-            "start_url": "./",
-            "display": "standalone",
-            "background_color": "#2563eb",
-            "theme_color": "#2563eb",
-            "icons": [{
-                "src": iconDataUrl,
-                "sizes": "512x512",
-                "type": "image/svg+xml",
-                "purpose": "any maskable"
-            }]
-        };
-        const manifestBlobUrl = URL.createObjectURL(new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' }));
-        
         document.addEventListener('DOMContentLoaded', () => {
-            const mLink = document.createElement('link');
-            mLink.rel = 'manifest';
-            mLink.href = manifestBlobUrl;
-            document.head.appendChild(mLink);
+            // Full bleed blue background with white ATM icon for robust PNG generation
+            const maskableSvgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2563eb"/><g fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" transform="translate(106, 106) scale(12.5)"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></g></svg>`;
+            
+            const img = new Image();
+            img.onload = () => {
+                // Convert SVG to standard Base64 PNG to prevent white box issues on Android
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const pngDataUrl = canvas.toDataURL('image/png');
+                
+                const manifestObj = {
+                    "name": "ATM Tracker Pro",
+                    "short_name": "ATMTracker",
+                    "start_url": ".",
+                    "display": "standalone",
+                    "background_color": "#2563eb",
+                    "theme_color": "#2563eb",
+                    "icons": [{
+                        "src": pngDataUrl,
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "any maskable"
+                    }]
+                };
+                
+                // Using a Data URI for the manifest ensures it's always accessible and avoids Blob URL bugs
+                const manifestDataUrl = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestObj));
+                
+                const mLink = document.createElement('link');
+                mLink.rel = 'manifest';
+                mLink.href = manifestDataUrl;
+                document.head.appendChild(mLink);
 
-            const appleIcon = document.createElement('link');
-            appleIcon.rel = 'apple-touch-icon';
-            appleIcon.href = iconDataUrl;
-            document.head.appendChild(appleIcon);
+                const appleIcon = document.createElement('link');
+                appleIcon.rel = 'apple-touch-icon';
+                appleIcon.href = pngDataUrl;
+                document.head.appendChild(appleIcon);
+            };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(maskableSvgStr);
 
             if ('serviceWorker' in navigator) {
                 const swCode = `
