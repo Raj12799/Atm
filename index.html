@@ -7,24 +7,24 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#3b82f6">
+    <meta name="theme-color" content="#2563eb">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script>
-        // Dynamically inject Manifest and Service Worker for robust PWA installation
+        // Data URI SVG icon matching the header branding with blue background and gradient
         const svgIconStr = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><linearGradient id="grad" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#4f46e5"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs><rect width="512" height="512" rx="110" fill="url(#grad)"/><g fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" transform="translate(96, 96) scale(13.33)"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></g></svg>`;
-        const iconBlobUrl = URL.createObjectURL(new Blob([svgIconStr], { type: 'image/svg+xml' }));
+        const iconDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIconStr);
 
         const manifestObj = {
             "name": "ATM Tracker Pro",
             "short_name": "ATMTracker",
             "start_url": "./",
             "display": "standalone",
-            "background_color": "#f8fafc",
-            "theme_color": "#3b82f6",
+            "background_color": "#2563eb",
+            "theme_color": "#2563eb",
             "icons": [{
-                "src": iconBlobUrl,
+                "src": iconDataUrl,
                 "sizes": "512x512",
                 "type": "image/svg+xml",
                 "purpose": "any maskable"
@@ -40,7 +40,7 @@
 
             const appleIcon = document.createElement('link');
             appleIcon.rel = 'apple-touch-icon';
-            appleIcon.href = iconBlobUrl;
+            appleIcon.href = iconDataUrl;
             document.head.appendChild(appleIcon);
 
             if ('serviceWorker' in navigator) {
