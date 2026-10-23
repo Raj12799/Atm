@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATM Tracker Pro</title>
+    <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22ATM%20Tracker%20Pro%22%2C%22short_name%22%3A%22ATMTracker%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafc%22%2C%22theme_color%22%3A%22%233b82f6%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fplacehold.co%2F192x192%2F3b82f6%2Fffffff%3Ftext%3DATM%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
+    <meta name="theme-color" content="#3b82f6">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        @media print {
+            body { background-color: white; padding: 0; margin: 0; }
+            .no-print { display: none !important; }
+            .print-break { page-break-inside: avoid; margin-bottom: 15px; border: 1px solid #ccc; padding: 8px; }
+        }
+
+        .tab-active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+        .editable-active { border: 1px dashed #3b82f6; background-color: #eff6ff; padding: 4px; border-radius: 4px; outline: none; }
+        #toast { transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; }
+        .filter-cb { width: 1rem; height: 1rem; cursor: pointer; accent-color: #3b82f6; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased p-4 md:p-6 text-xs">
+
+    <!-- Sticky Header & Controls -->
+    <div class="sticky top-0 z-50 bg-[#f8fafc]/95 backdrop-blur pt-3 pb-2 -mx-4 px-4 md:-mx-6 md:px-6 -mt-4 md:-mt-6 mb-4 shadow-sm border-b border-slate-200 no-print transition-all">
+        <div class="max-w-7xl mx-auto">
+            <!-- Main Heading & Reset Button Row Side-by-Side -->
+            <div class="flex justify-between items-center gap-2 mb-3">
+                <h1 class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight">ATM AND ADWM DATA</h1>
+                <button onclick="resetCompletedStatus()" title="Reset All Completed Status to Pending" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors text-xs font-semibold flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Reset Completed
+                </button>
+            </div>
+
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-3">
+                <!-- Search -->
+                <div class="relative w-full md:w-96">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 20 20" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                        </svg>
+                    </div>
+                    <input type="text" id="searchInput" class="block w-full p-2.5 pl-9 text-slate-900 border border-slate-300 rounded-lg bg-white shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs" placeholder="Search ID, Area, Branch..." onkeyup="renderApp()">
+                </div>
+
+                <!-- Export & Filter Buttons Row -->
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button onclick="openExportModal('excel')" class="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors font-medium text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Excel
+                    </button>
+                    <button onclick="openExportModal('pdf')" class="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors font-medium text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        PDF
+                    </button>
+                    <button onclick="openFilters()" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg shadow-sm transition-colors font-medium text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                        Filter & Sort
+                    </button>
+                </div>
+            </div>
+
+            <!-- Master Tabs (Pending Default) -->
+            <div>
+                <ul class="flex flex-wrap -mb-px text-center" id="tabs">
+                    <li class="mr-2" onclick="switchTab('pending')">
+                        <button id="tab-pending" class="inline-block px-4 py-2.5 border-b-2 tab-active cursor-pointer transition-all font-semibold text-xs">Pending (<span id="count-pending">0</span>)</button>
+                    </li>
+                    <li class="mr-2" onclick="switchTab('completed')">
+                        <button id="tab-completed" class="inline-block px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700 cursor-pointer transition-all text-xs">Completed (<span id="count-completed">0</span>)</button>
+                    </li>
+                    <li class="mr-2" onclick="switchTab('all')">
+                        <button id="tab-all" class="inline-block px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700 cursor-pointer transition-all text-xs">All (<span id="count-all">0</span>)</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="max-w-7xl mx-auto" id="mainContainer"></div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2.5 rounded-lg shadow-lg opacity-0 translate-y-3 pointer-events-none z-50 text-xs font-medium">
+        Action successful!
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filterModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[100] flex justify-center items-center no-print">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-2xl max-h-[85vh] flex flex-col overflow-hidden text-xs">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-sm text-slate-800">Filter & View Settings</h3>
+                <button onclick="closeFilters()" class="text-slate-500 hover:text-red-500 font-bold text-xl leading-none">&times;</button>
+            </div>
+            
+            <div class="p-5 overflow-y-auto flex-1">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 border-b pb-1">Status</h4>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-status" value="completed"> Completed</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-status" value="pending"> Pending</label>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 border-b pb-1">Category</h4>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-category" value="matched"> Alloted (Matched)</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-category" value="not-matched"> Not Matched</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-category" value="non-alloted"> Non Alloted</label>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 border-b pb-1">Custodian Role</h4>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-cust-role" value="Service Manager"> Service Manager</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-cust-role" value="Engineer"> Engineer</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600"><input type="checkbox" class="filter-cb flt-cust-role" value="Custodian"> Custodian</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-slate-800 mb-2 border-b pb-1">Branches</h4>
+                    <div id="branchFilters" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-3"></div>
+                </div>
+            </div>
+
+            <div class="p-3.5 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="clearFilters()" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold text-slate-700 transition-colors">Clear All</button>
+                <button onclick="applyFilters()" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold transition-colors shadow-sm">Apply & Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Column Selector Modal -->
+    <div id="exportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[150] flex justify-center items-center no-print">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-sm p-5 flex flex-col overflow-hidden text-xs">
+            <h3 class="font-bold text-sm text-slate-800 mb-2 border-b pb-1.5">Select Columns for Export</h3>
+            <p class="text-[11px] text-slate-500 mb-3">Choose columns to include in your export:</p>
+            
+            <div id="exportColCheckboxes" class="flex flex-col gap-2 mb-4 max-h-60 overflow-y-auto">
+                <!-- Dynamically populated -->
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeExportModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700 transition-colors">Cancel</button>
+                <button onclick="confirmExport()" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[200] flex justify-center items-center no-print">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-sm p-5 text-xs">
+            <h3 id="confirmTitle" class="font-bold text-sm text-slate-800 mb-1.5">Are you sure?</h3>
+            <p id="confirmMessage" class="text-slate-600 mb-4">Do you want to proceed with this action?</p>
+            <div class="flex justify-end gap-2">
+                <button id="confirmCancelBtn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700 transition-colors">Cancel</button>
+                <button id="confirmOkBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rawMasterData = [
+            ["U1BF001469009", "matched", "Onkareshwar Apt Shop 06", "Ekta Nagar Borgad", "Dindori Road Nashik", "20.05505", "73.79938", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469011", "non-alloted", "Shop no. 2, Dehbur Apt", "NASHIK ROAD", "Near Bytco Point", "19.95407", "73.83717", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["S1NN001469015", "non-alloted", "CDO, MERI COLONY", "NASHIK (M Corp.)", "MERI COLONY", "19.95100", "73.80900", "NOT AVAILA", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469016", "matched", "Vishal Petrol Pump", "Nashik", "CDO MERI COLONY", "20.03010", "73.80140", "NOT AVAILA", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469017", "matched", "-", "Untwadi Road", "Nashik Maharashtra", "19.98663", "73.75844", "NO", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469018", "matched", "CDO, MERI COLONY", "MERI COLONY Nashik", "NASHIK, CDO MERI", "20.03010", "73.80140", "NOT AVAILA", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469022", "non-alloted", "SM JORE PETROL PUMP", "DINDORI ROAD MERI", "ESSAR PETROL PUMP", "20.88711", "73.80515", "NO", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469027", "matched", "SSICOF BLDG", "SATPUR MIDC AREA", "SSICOF BLDG", "20.00163", "73.72190", "NOT AVAILA", "YES", "NO", "NO", "Phase 18"],
+            ["S1NN001469028", "matched", "493/267, ASHOK NAGAR", "NASHIK (M Corp.)", "SATPUR LINK ROAD", "19.99350", "73.72460", "NOT AVAILA", "YES", "NO", "YES", "Phase 18"],
+            ["S1NN001469031", "matched", "RAMBAUG BUILDING", "GANGAPUR ROAD", "VIDYA VIKAS CIRCLE", "20.00937", "73.76681", "NO", "YES", "NO", "YES", "Phase 18"],
+            ["U1BF001469046", "matched", "Chandra Bhaga Niwas", "sheast chowk", "NASHIK ROAD", "19.96300", "73.76000", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["S1NN001469053", "non-alloted", "ARTILLERY CENTRE", "New Nashik", "NASHIK (M Corp.)", "19.95100", "73.80900", "NOT AVAILA", "YES", "NO", "YES", "Phase 18"],
+            ["U1BF001469062", "matched", "Trimurti Complex", "Amrut Dham Chowk", "PANCHAVATI", "20.01159", "73.82621", "NO", "YES", "NO", "NO", "Phase 17"],
+            ["U1BF001469064", "matched", "Plot no.91 Shriram Nagar", "opp. Vinay Nagar", "Wadala Pathardi Road", "19.98097", "73.79139", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469066", "matched", "Datta krupa, shop no 1", "kamatwade road", "near pawawater tank", "19.97297", "73.75236", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469069", "matched", "Margasirsh Sector", "MORWADI NEW CIDCO", "VIJAY NAGAR BUS STOP", "19.96816", "73.75970", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469072", "matched", "Trimurti Complex", "Amrut Dham Chowk", "PANCHAVATI", "20.01159", "73.82621", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469081", "matched", "Khandoba Chowk", "Wadala Goan", "Dist. Nashik", "19.96980", "73.79443", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469082", "non-alloted", "Manjulai Apartment", "Jail Road", "near manjula hall", "19.97336", "73.84088", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469093", "non-alloted", "MANJULA APARTMENT", "NEAR MANJULA MANGAL", "MANJULA KARYALAYA", "19.97296", "73.79990", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["S1NN001469107", "matched", "OPP ZILLA PARISHAD", "TRIMBAK NAKA", "TRIMBAK NAKA OPP Z P", "19.97322", "73.78226", "NO", "YES", "NO", "YES", "Phase 18"],
+            ["T1BY001469118", "matched", "Laxmikrupa building", "Near Katya Maruti", "Panchavati, Nasik", "20.07938", "73.80115", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["T1BH001469119", "matched", "Dhara Society", "Santa Dnyaneshwar Nagar", "Near Sudarshan Store", "19.97954", "73.84443", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["T1BY001469121", "matched", "Mahaveer Nagari", "Dindori Road, Nasik", "Near Harshagiri", "20.01679", "73.79638", "YES", "YES", "NO", "YES", "Phase 14"],
+            ["T1BH001469122", "matched", "Essar Petrol Pump", "Satpur-Ambad link road", "Satpur-Ambad link", "19.99750", "73.78980", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["U1BF001469141", "non-alloted", "Suman Niwas", "Lokhande Mala", "Opposite ICICI ATM", "19.97420", "73.83040", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469142", "non-alloted", "Suman Niwas", "Lokhande Mala", "Opposite ICICI ATM", "19.97420", "73.83040", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF001469149", "matched", "Shivam park apartment", "Pokar Colony", "-", "20.03528", "73.80771", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["S1BP006333010", "matched", "Laxmivijay Building", "Panchavati, Nasik.", "Near Bhakti Dham", "19.96811", "73.77506", "NO", "YES", "NO", "YES", "Phase 15"],
+            ["S1BW006333011", "matched", "Laxmivijay Building", "Panchavati, Nasik.", "Near Bhakti Dham", "19.96811", "73.77506", "NO", "YES", "NO", "YES", "Phase 13"],
+            ["S5NM006333621", "matched", "Laxmivijay Building", "Panchavati, Nasik.", "Near Bhakti Dham", "19.96811", "73.77506", "NO", "YES", "NO", "YES", "Phase 16"],
+            ["U1BF007235002", "matched", "Skyline Majestic", "Kamal Nagar", "Panchvati Nashik", "20.01808", "73.81486", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["S1BN007235004", "matched", "NEAR LEKHANAGAR", "NEW CIDCO NASIK", "SBI CIDCO COLONY", "20.00136", "73.77573", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["U1BF007235005", "matched", "ghule sankul", "datta nagar ambad", "Chunchale, Nashik", "19.95524", "73.72430", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235008", "matched", "MAHARANA PRATAP", "NEAR LEKHA NAGAR", "MAHARANA PRATAP CHK", "19.97323", "73.76552", "NO", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235009", "matched", "Chatrapati Shahu Nagar", "ITI Ambad road", "Audumbar corner", "19.98853", "73.75074", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235010", "matched", "Nirmal datt apartment", "near sakshi ganesh", "bhadrakali nashik", "20.00190", "73.79096", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235011", "matched", "MHB COLONY", "ASHOK NAGAR", "SATPUR NASHIK", "19.98960", "73.72359", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235012", "matched", "Sadashiv Complex", "Adgoan, Nashik.", "Near Bus Stop", "20.03500", "19.98097", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235015", "matched", "Sai Sahawas Apartment", "Prashant Nagar", "Opp Rajrajeshwari", "19.94989", "73.75783", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235017", "non-alloted", "Hari Pooja, Apartment", "Opp Pathardi Police", "Road Nashik", "19.97890", "73.84980", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235019", "matched", "Shravan Sector", "CIDCO New Nasik", "-", "19.96635", "73.76635", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235021", "matched", "VARADA COMPLEX", "KAMATHWADE NASHIK", "-", "20.37729", "74.65574", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235023", "matched", "Shravan Sector", "CIDCO New Nasik", "-", "19.96635", "73.76635", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235024", "matched", "GOPAL KRISHNA", "PANDIT COLONY", "CIDCO NASHIK", "19.97220", "73.75700", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235025", "matched", "MAHARANA PRATAP", "NEAR LEKHA NAGAR", "MAHARANA PRATAP", "19.97323", "73.76552", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235029", "matched", "Maya-One Apt.", "Rajpal Colony", "MAKHMALABAD NAKA", "20.01670", "73.78938", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235034", "non-alloted", "sakshi bunglow", "saint charvak chowk", "Indira nagar", "19.97200", "73.78100", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235035", "matched", "Anand Residency", "Mahalaxmi bus stop", "Nashik", "20.01150", "73.80235", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235036", "matched", "Pavan Nager Market", "New Cidco, Nashik", "-", "19.97220", "73.75700", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235037", "matched", "Nivrutti vihar", "opposite pawan nagar", "-", "19.97724", "73.75495", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235038", "matched", "VARADA COMPLEX", "KAMATHWADE NASHIK", "-", "20.37729", "74.65574", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235041", "matched", "Rugved apartment", "Dr. Homi Bhabha Nagar", "Nashik", "19.98678", "73.78561", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235042", "matched", "Amrut vihar", "kewal park road", "-", "19.97198", "73.74110", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235043", "matched", "OLD CIDCO", "Old Cidco", "Nashik", "19.97575", "73.77051", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235052", "matched", "Swami Sankul", "Painth Road", "Near RTO", "19.88513", "75.36165", "YES", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235053", "matched", "mayur complex", "trimbak road", "-", "19.98783", "73.72252", "NO", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235054", "matched", "Wasan Toyota", "pathardi phata", "kamatwade", "19.95782", "73.76183", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235056", "matched", "raj palace", "opposite mauli lawns", "-", "19.97251", "73.74703", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["T1NW007235059", "matched", "SBI Jehan Circle", "Jehan Circle", "Near Savarkar Nagar", "20.01090", "73.73900", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["T1NW007235060", "matched", "SBI Ashoknagar", "Kedar tower", "Kedar tower", "19.99750", "73.78980", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["T1NW007235064", "non-alloted", "SBI Sahyadri", "Sahyadri Agro", "-", "20.08229", "73.91636", "YES", "YES", "NO", "YES", "Phase 14"],
+            ["T1NW007235065", "matched", "Vinayak heights", "Pathardi Road", "-", "19.96134", "73.77816", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["T1NW007235066", "matched", "SBI Ambad I.A.", "Ashwin Nagar", "Near Sambhaji", "19.97524", "73.78462", "YES", "YES", "NO", "YES", "Phase 14"],
+            ["T1BW007235067", "matched", "Matoshree complex", "Gangapur Village", "SBI Someshawar", "19.20434", "72.84019", "YES", "YES", "NO", "YES", "Phase 14"],
+            ["T1BW007235068", "matched", "Gajanan krupa Bldg", "MAKHMALABAD ROAD", "SBI MAKHMLABAD", "20.04921", "73.78397", "YES", "YES", "NO", "YES", "Phase 14"],
+            ["T1BW007235070", "matched", "Gopal Complex", "Shivaji Nagar", "Near Surya Marfi", "19.98127", "73.81293", "NO", "YES", "NO", "YES", "Phase 14"],
+            ["U1BF007235074", "matched", "Cidco complex", "Trimurti chowk", "Nashik", "19.98550", "73.75754", "YES", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235075", "matched", "N-42/A/C-2/1", "Makhmalabad Stand", "-", "20.04700", "73.75871", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235076", "matched", "N-41J/C/D-1", "sai baba nagar", "-", "19.97416", "73.75955", "YES", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235077", "matched", "Mahavir Niwas", "Opposite Mahalaxmi", "-", "19.97905", "-", "NO", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235080", "matched", "saharanpur gavthan", "Sharanpur road", "tibetian market", "19.99803", "73.76989", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235087", "matched", "NEAR SEVA MEDICAL", "CIDCO COLLEGE", "UTTAMNAGAR", "19.96960", "73.75418", "YES", "NO", "NO", "YES", "Phase 17"],
+            ["U1BF007235092", "matched", "Ganesh Prasad Apt", "Gurudwara Road", "Panchavati", "20.00933", "73.79729", "NO", "YES", "NO", "YES", "Phase 17"],
+            ["U1BF007235100", "matched", "gat no 55/4A", "near water tank", "Sai men's parler", "19.96097", "73.72721", "NOT AVAILA", "YES", "NO", "YES", "Phase 17"],
+            ["S5NM007235621", "matched", "NEAR LEKHANAGAR", "SBI CIDCO COLONY", "NEW CIDCO NASIK", "20.00136", "73.77573", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN007497002", "matched", "Moti Villa, SBI", "Gangapur Road", "Nasik.", "20.00896", "73.76775", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S1BN007497003", "matched", "Moti Villa, SBI", "Gangapur Road", "Nasik.", "20.00896", "73.76775", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NM007497623", "matched", "Moti Villa, SBI", "Gangapur Road", "Nasik.", "20.00896", "73.76775", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BP010376001", "matched", "MERI COLONY", "DINDORI ROAD", "DINDORI ROAD MERI", "20.03445", "73.80339", "YES", "YES", "NO", "YES", "Phase 15"],
+            ["S1BN010376004", "matched", "MERI COLONY", "DINDORI ROAD", "DINDORI ROAD MERI", "20.03445", "73.80339", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NM010376622", "matched", "MERI COLONY", "DINDORI ROAD", "DINDORI ROAD MERI", "20.03445", "73.80339", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN010486001", "matched", "SBI Ambad Branch", "Ashwin nagar", "Near Sambhaji", "19.97524", "73.78462", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NM010486621", "matched", "SBI Ambad Branch", "Ashwin nagar", "Near Sambhaji", "19.97524", "73.78462", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN012210001", "matched", "SAGAR HERITAGE", "OPP JAIL ROAD", "OPP PHILOMENA", "19.96892", "73.83999", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S1BN012508004", "matched", "Khanzode complex", "VIBHUTI PLOT NO 1", "SBI ADGAON BRANCH", "20.02609", "73.84215", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NM012508621", "matched", "Khanzode complex", "VIBHUTI PLOT NO 1", "SBI ADGAON BRANCH", "20.02609", "73.84215", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN012510001", "matched", "SBI Dwaraka", "Gangapur Village", "SBI Someshawar", "19.20434", "72.84019", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S1BP014443001", "non-alloted", "SBI Dwaraka", "SBI Indiranagar", "Near Bapu Bunglow", "19.96923", "73.75616", "YES", "YES", "NO", "YES", "Phase 15"],
+            ["S5NM014443621", "non-alloted", "SURYA AVENUE", "SBI Indiranagar", "Near Bapu Bunglow", "19.96923", "73.75616", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN016373001", "non-alloted", "PLOT NO.177 B", "Times Square", "Manekshaw Nagar", "19.96811", "73.77506", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NL016373621", "non-alloted", "-", "Times Square", "Manekshaw Nagar", "19.96811", "73.77506", "YES", "YES", "NO", "YES", "Phase 13"],
+            ["S5NM017464621", "matched", "-", "PATHARDI PHATA", "BELOW SAPTASHRUNGI", "20.10726", "73.94694", "NO", "YES", "NO", "YES", "Phase 16"],
+            ["S5NM018050621", "matched", "-", "Abhonkar Lane", "Ravivar karanja", "20.00674", "73.78917", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BP018656001", "matched", "SHANTA MADHA", "-", "SBI SHANTA MADHA", "19.99327", "73.77269", "YES", "YES", "NO", "YES", "Phase 15"],
+            ["S1BN018795001", "matched", "Gajanan Krupa Bldg", "Makhamalabad Road", "SBI Makhmalabad", "19.97524", "73.78462", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S1BP021196001", "matched", "SPECTRUM RESIDENCY", "Ambad Link Rd", "Ambad Link Rd", "19.97260", "73.74630", "NO", "YES", "NO", "YES", "Phase 15"],
+            ["S1BP060431002", "matched", "CROWN COMPLEX", "-", "SBI SHARANPUR ROAD", "20.00136", "73.77573", "YES", "YES", "NO", "YES", "Phase 15"],
+            ["S1BN060431003", "matched", "CROWN COMPLEX", "-", "SBI SHARANPUR ROAD", "20.00136", "73.77573", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S1BP061400001", "matched", "Roongta Business", "SATPUR INDUSTRIAL", "OPP SAKAL PRESS", "19.98363", "73.77925", "NO", "YES", "NO", "YES", "Phase 15"],
+            ["S1BN061401001", "matched", "Shreeji Excelencia", "SATPUR INDUSTRIAL", "OPP SAKAL PRESS", "19.97998", "73.71037", "YES", "YES", "NO", "YES", "Phase 18"],
+            ["S5NL061401622", "matched", "Near sagar sweets", "-", "-", "19.97998", "73.71037", "YES", "YES", "NO", "YES", "Phase 13"],
+            ["S5NN065219621", "matched", "Serene Meadows", "Govind Nagar", "Anandwalli, Nashik", "20.01653", "73.73591", "YES", "YES", "NO", "YES", "Phase 16"],
+            ["S1BN012511001", "not-matched", "Unknown", "Unknown", "-", "-", "-", "-", "-", "-", "-", "Phase 18"],
+            ["S1NN001469030", "not-matched", "Unknown", "Unknown", "-", "-", "-", "-", "-", "-", "-", "Phase 18"],
+            ["S5NM004453621", "not-matched", "Unknown", "Unknown", "-", "-", "-", "-", "-", "-", "-", "Phase 16"],
+            ["T1BY001469120", "not-matched", "Unknown", "Unknown", "-", "-", "-", "-", "-", "-", "-", "Phase 14"]
+        ];
+
+        const branchMap = {
+            "00360": "DEOLALI (NASIK DIST.)", "00437": "TREASURY BRANCH NASIK", "01247": "NASIK ROAD", "01469": "OLD AGRA ROAD NASIK",
+            "03872": "SATPUR INDUSTRIAL AREA(NASIK)", "04453": "SPECIALIZED PERSONAL BANKING BRANCH", "06333": "PANCHAVATI (NASIK)",
+            "07235": "CIDCO COLONY VILHOLI NASIK", "07497": "GANGAPUR ROAD(NASIK)", "10376": "MAHA ENGG RESEARCH INST. NASIK",
+            "10479": "NASIK MAHANAGAR PALIKA NASIK", "10486": "AMBAD NASIK", "11329": "ARTILLERY CENTRE BRANCH NASIK",
+            "11435": "AIR FORCE STATION DEOLALI", "11669": "SHIVAJI NAGAR NASIK", "11803": "CURRENCY ADMN CELL NASHIK",
+            "12210": "JAIL ROAD NASIK", "12508": "ADGAON BRANCH", "12510": "GANGAPUR (SOMESHWAR) NASIK", "12511": "TRIMURTI CHOWK NASIK",
+            "14443": "INDIRA NAGAR NASIK", "14885": "SME NASIK", "16094": "JAI BHAVANI ROAD NASIK", "16324": "ASHOK NAGAR NASIK",
+            "16373": "DWARKA CIRCLE NASIK", "16412": "MUMBAI NAKA NASIK", "17464": "PATHARDI PHATA NASIK", "17499": "GAULANE (FIP)",
+            "18050": "RAVIWAR KARANJA", "18656": "MICO CIRCLE NASIK", "18795": "MAKHMALABAD NASIK", "21196": "KAMATHWADE NASHIK",
+            "21197": "MAHATMA NAGAR NASIK", "21877": "JEHAN CIRCLE NASIK", "50871": "UPENDRA NAGAR NASIK", "60431": "SHARANPUR ROAD BRANCH NASHIK",
+            "61400": "GOVIND NAGAR", "61401": "TRIMBAK ROAD SATPUR", "65219": "SERENE MEADOWS NASHIK"
+        };
+
+        const defaultVendors = ["NCR", "HITACHI", "OKI", "FIS", "FSS", "CMS"];
+
+        let ATMs = rawMasterData.map((row, index) => {
+            let brCode = "Unknown";
+            let brName = "Branch Not Found";
+            if (row[0] && row[0].length >= 8 && row[0] !== "Unknown") {
+                brCode = row[0].substring(row[0].length - 8, row[0].length - 3);
+                if (branchMap[brCode]) brName = branchMap[brCode];
+            }
+
+            let defaultAtmType = row[0].startsWith('S5') || row[0].startsWith('U5') ? 'ADWM' : 'ATM';
+
+            return {
+                srNo: index + 1,
+                id: row[0],
+                branchCode: brCode,
+                branchName: brName,
+                category: row[1],
+                building: row[2],
+                area: row[3],
+                landmark: row[4],
+                lat: row[5],
+                lng: row[6],
+                mapLink: '',
+                atmType: defaultAtmType,
+                vendor: 'NCR',
+                phase: row[11] || 'Phase 17',
+                ramp: row[7],
+                shutter: row[8],
+                caretaker: row[9],
+                esurv: row[10],
+                status: 'pending',
+                remarks: '',
+                custodians: [] 
+            };
+        });
+
+        // Load Local State
+        let appState = {};
+        try {
+            const savedState = localStorage.getItem('atmTrackerProState');
+            if (savedState) appState = JSON.parse(savedState);
+        } catch (e) {}
+        
+        ATMs = ATMs.map(atm => {
+            if (appState[atm.id]) {
+                atm.status = appState[atm.id].status || 'pending';
+                atm.remarks = appState[atm.id].remarks || '';
+                if(appState[atm.id].building) atm.building = appState[atm.id].building;
+                if(appState[atm.id].area) atm.area = appState[atm.id].area;
+                if(appState[atm.id].landmark) atm.landmark = appState[atm.id].landmark;
+                if(appState[atm.id].lat) atm.lat = appState[atm.id].lat;
+                if(appState[atm.id].lng) atm.lng = appState[atm.id].lng;
+                if(appState[atm.id].mapLink !== undefined) atm.mapLink = appState[atm.id].mapLink;
+                if(appState[atm.id].atmType) atm.atmType = appState[atm.id].atmType;
+                if(appState[atm.id].vendor) atm.vendor = appState[atm.id].vendor;
+                if(appState[atm.id].phase) atm.phase = appState[atm.id].phase;
+                if(appState[atm.id].ramp) atm.ramp = appState[atm.id].ramp;
+                if(appState[atm.id].shutter) atm.shutter = appState[atm.id].shutter;
+                if(appState[atm.id].caretaker) atm.caretaker = appState[atm.id].caretaker;
+                if(appState[atm.id].esurv) atm.esurv = appState[atm.id].esurv;
+                if(appState[atm.id].custodians) atm.custodians = appState[atm.id].custodians;
+            }
+            return atm;
+        });
+
+        let currentFilteredATMs = [];
+        let activeFilters = { status: [], category: [], branches: [], custRoles: [] };
+        let editingId = null;
+        let currentTab = 'pending'; // Pending default
+        let exportMode = 'excel';
+
+        function setupBranchFilters() {
+            const container = document.getElementById('branchFilters');
+            const uniqueBranches = [...new Set(ATMs.map(a => a.branchCode))].filter(b => b !== 'Unknown');
+            uniqueBranches.sort((a, b) => branchMap[a].localeCompare(branchMap[b]));
+
+            uniqueBranches.forEach(code => {
+                const label = document.createElement('label');
+                label.className = "flex items-start gap-2 cursor-pointer text-slate-700 hover:text-blue-600 mb-1";
+                label.innerHTML = `<input type="checkbox" class="filter-cb flt-branch mt-0.5" value="${code}"> <span class="leading-tight">${branchMap[code]}<br><span class="text-[10px] text-slate-400">(${code})</span></span>`;
+                container.appendChild(label);
+            });
+        }
+        setupBranchFilters();
+
+        function saveState() {
+            let stateObj = {};
+            ATMs.forEach(atm => {
+                stateObj[atm.id] = {
+                    status: atm.status,
+                    remarks: atm.remarks,
+                    building: atm.building,
+                    area: atm.area,
+                    landmark: atm.landmark,
+                    lat: atm.lat,
+                    lng: atm.lng,
+                    mapLink: atm.mapLink,
+                    atmType: atm.atmType,
+                    vendor: atm.vendor,
+                    phase: atm.phase,
+                    ramp: atm.ramp,
+                    shutter: atm.shutter,
+                    caretaker: atm.caretaker,
+                    esurv: atm.esurv,
+                    custodians: atm.custodians
+                };
+            });
+            try {
+                localStorage.setItem('atmTrackerProState', JSON.stringify(stateObj));
+            } catch (e) {}
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(0.5rem)';
+            }, 3000);
+        }
+
+        function showConfirm(title, message, onConfirm) {
+            document.getElementById('confirmTitle').innerText = title;
+            document.getElementById('confirmMessage').innerText = message;
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('hidden');
+
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            const newOkBtn = okBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newOkBtn.onclick = () => {
+                modal.classList.add('hidden');
+                onConfirm(true);
+            };
+            newCancelBtn.onclick = () => {
+                modal.classList.add('hidden');
+                onConfirm(false);
+            };
+        }
+
+        function openFilters() { document.getElementById('filterModal').classList.remove('hidden'); }
+        function closeFilters() { document.getElementById('filterModal').classList.add('hidden'); }
+        
+        function clearFilters() {
+            document.querySelectorAll('.filter-cb').forEach(cb => cb.checked = false);
+            activeFilters = { status: [], category: [], branches: [], custRoles: [] };
+            renderApp();
+            showToast("Filters Cleared");
+        }
+
+        function applyFilters() {
+            activeFilters.status = Array.from(document.querySelectorAll('.flt-status:checked')).map(cb => cb.value);
+            activeFilters.category = Array.from(document.querySelectorAll('.flt-category:checked')).map(cb => cb.value);
+            activeFilters.branches = Array.from(document.querySelectorAll('.flt-branch:checked')).map(cb => cb.value);
+            activeFilters.custRoles = Array.from(document.querySelectorAll('.flt-cust-role:checked')).map(cb => cb.value);
+            closeFilters();
+            renderApp();
+            showToast("Filters Applied");
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['pending', 'completed', 'all'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if(t === tab) {
+                    el.classList.add('tab-active', 'border-blue-500', 'font-semibold');
+                    el.classList.remove('border-transparent', 'text-slate-500');
+                } else {
+                    el.classList.remove('tab-active', 'border-blue-500', 'font-semibold');
+                    el.classList.add('border-transparent', 'text-slate-500');
+                }
+            });
+            renderApp();
+        }
+
+        function toggleStatus(id) {
+            const atm = ATMs.find(a => a.id === id);
+            if(atm) {
+                atm.status = atm.status === 'completed' ? 'pending' : 'completed';
+                saveState();
+                renderApp();
+                showToast(`Marked as ${atm.status === 'completed' ? 'Completed' : 'Pending'}!`);
+            }
+        }
+
+        function resetCompletedStatus() {
+            showConfirm("Reset All Completed Status?", "This will unmark all completed ATMs and move them back to Pending status without losing your entered data or remarks.", (confirmed) => {
+                if (confirmed) {
+                    ATMs.forEach(atm => atm.status = 'pending');
+                    saveState();
+                    renderApp();
+                    showToast("All statuses reset to Pending!");
+                }
+            });
+        }
+
+        function updateRemark(id, val) {
+            const atm = ATMs.find(a => a.id === id);
+            if(atm) {
+                atm.remarks = val;
+                saveState();
+            }
+        }
+
+        function toggleEdit(id) {
+            if(editingId === id) {
+                showConfirm("Save Changes?", "Do you want to save the edited details for this ATM?", (confirmed) => {
+                    if (confirmed) {
+                        const atm = ATMs.find(a => a.id === id);
+                        atm.building = document.getElementById(`edit-bldg-${id}`).innerText;
+                        atm.area = document.getElementById(`edit-area-${id}`).innerText;
+                        atm.landmark = document.getElementById(`edit-lnd-${id}`).innerText;
+                        atm.lat = document.getElementById(`edit-lat-${id}`).innerText;
+                        atm.lng = document.getElementById(`edit-lng-${id}`).innerText;
+                        atm.mapLink = document.getElementById(`edit-maplink-${id}`).value.trim();
+                        atm.atmType = document.getElementById(`edit-atmtype-${id}`).value;
+                        atm.phase = document.getElementById(`edit-phase-${id}`).value;
+                        atm.ramp = document.getElementById(`edit-ramp-${id}`).value;
+                        atm.shutter = document.getElementById(`edit-shutter-${id}`).value;
+                        atm.caretaker = document.getElementById(`edit-caretaker-${id}`).value;
+                        atm.esurv = document.getElementById(`edit-esurv-${id}`).value;
+                        
+                        const vendorEl = document.getElementById(`edit-vendor-${id}`);
+                        let vVal = vendorEl.value;
+                        if(vVal === 'Custom') {
+                            vVal = document.getElementById(`edit-vendor-custom-${id}`).value.trim() || 'Custom';
+                        }
+                        atm.vendor = vVal;
+
+                        const custodianRows = document.querySelectorAll(`.custodian-row-${id}`);
+                        let updatedCustodians = [];
+                        custodianRows.forEach(row => {
+                            let role = row.querySelector('.cust-role').value;
+                            if(role === 'Custom') {
+                                role = row.querySelector('.cust-role-custom').value.trim() || 'Custom';
+                            }
+                            const name = row.querySelector('.cust-name').value;
+                            const number = row.querySelector('.cust-number').value;
+                            if(name.trim() !== '' || number.trim() !== '') updatedCustodians.push({role, name, number});
+                        });
+                        atm.custodians = updatedCustodians;
+
+                        saveState();
+                        editingId = null;
+                        showToast("Details Saved Successfully!");
+                        renderApp();
+                    } else {
+                        showConfirm("Discard Edits?", "Are you sure you want to discard your changes?", (discardConfirmed) => {
+                            if(discardConfirmed) {
+                                editingId = null;
+                                renderApp();
+                                showToast("Edit discarded.");
+                            }
+                        });
+                    }
+                });
+            } else {
+                showConfirm("Start Editing?", "You are entering edit mode for this ATM.", (confirmed) => {
+                    if (confirmed) {
+                        editingId = id;
+                        renderApp();
+                    }
+                });
+            }
+        }
+
+        function addCustodian(id) {
+            const atm = ATMs.find(a => a.id === id);
+            if(atm) {
+                atm.custodians.push({role: 'Service Manager', name: '', number: ''});
+                renderApp();
+            }
+        }
+
+        function removeCustodian(id, index) {
+            const atm = ATMs.find(a => a.id === id);
+            if(atm) {
+                atm.custodians.splice(index, 1);
+                renderApp();
+            }
+        }
+
+        function handleRoleChange(selectEl, id) {
+            const customInput = document.getElementById(`cust-custom-${id}-${selectEl.dataset.index}`);
+            if(selectEl.value === 'Custom') {
+                customInput.classList.remove('hidden');
+            } else {
+                customInput.classList.add('hidden');
+            }
+        }
+
+        function addCustomRoleFromButton(selectId, customInputId) {
+            const selectEl = document.getElementById(selectId);
+            const customInput = document.getElementById(customInputId);
+            selectEl.value = 'Custom';
+            customInput.classList.remove('hidden');
+            customInput.focus();
+        }
+
+        function handleVendorChange(selectEl, id) {
+            const customInput = document.getElementById(`vendor-custom-${id}`);
+            if(selectEl.value === 'Custom') {
+                customInput.classList.remove('hidden');
+            } else {
+                customInput.classList.add('hidden');
+            }
+        }
+
+        function openExportModal(mode) {
+            exportMode = mode;
+            const container = document.getElementById('exportColCheckboxes');
+            
+            const columns = [
+                { id: 'srNo', label: 'Total Sr No', checked: true },
+                { id: 'sheetSrNo', label: 'Sheet Sr No', checked: true },
+                { id: 'atmId', label: 'ATM ID', checked: true },
+                { id: 'atmType', label: 'ATM Type', checked: true },
+                { id: 'vendor', label: 'Vendor Company', checked: true },
+                { id: 'phase', label: 'Phase', checked: true },
+                { id: 'branch', label: 'Branch Code & Name', checked: true },
+                { id: 'category', label: 'Category', checked: true },
+                { id: 'status', label: 'Status', checked: true },
+                { id: 'building', label: 'Building', checked: true },
+                { id: 'area', label: 'Area', checked: true },
+                { id: 'landmark', label: 'Landmark', checked: true },
+                { id: 'latlng', label: 'Latitude / Longitude', checked: true },
+                { id: 'mapLink', label: 'Map Link', checked: true },
+                { id: 'ramp', label: 'Ramp', checked: true },
+                { id: 'shutter', label: 'Shutter', checked: true },
+                { id: 'caretaker', label: 'Caretaker', checked: true },
+                { id: 'esurv', label: 'E-Surveillance', checked: true },
+                { id: 'custodians', label: 'Custodians & Contacts', checked: true },
+                { id: 'remarks', label: 'Remarks', checked: true }
+            ];
+
+            container.innerHTML = '';
+            columns.forEach(col => {
+                const label = document.createElement('label');
+                label.className = "flex items-center gap-2 cursor-pointer text-slate-700 hover:text-blue-600";
+                label.innerHTML = `<input type="checkbox" class="export-col-cb" value="${col.id}" ${col.checked ? 'checked' : ''}> ${col.label}`;
+                container.appendChild(label);
+            });
+
+            document.getElementById('exportModal').classList.remove('hidden');
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportModal').classList.add('hidden');
+        }
+
+        function confirmExport() {
+            closeExportModal();
+            const selectedCols = Array.from(document.querySelectorAll('.export-col-cb:checked')).map(cb => cb.value);
+            if(exportMode === 'excel') {
+                exportExcelCustom(selectedCols);
+            } else {
+                exportPDFCustom(selectedCols);
+            }
+        }
+
+        function buildSection(title, data, bgHeaderColor) {
+            if(data.length === 0) return '';
+            
+            let html = `
+                <div class="mb-6 print-break">
+                    <h2 class="text-xs font-bold text-slate-700 p-2.5 rounded-t-lg ${bgHeaderColor} flex justify-between items-center mb-3">
+                        ${title}
+                        <span class="bg-white text-slate-800 px-2 py-0.5 rounded-full text-[11px] font-semibold shadow-sm">${data.length} ATMs</span>
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            `;
+
+            data.forEach(atm => {
+                const isEditing = editingId === atm.id;
+                const isComp = atm.status === 'completed';
+                const statusBadge = isComp 
+                    ? `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold border border-green-200">✓ Completed</span>` 
+                    : `<span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-200">⚠ Pending</span>`;
+                
+                const bldgField = isEditing ? `<div id="edit-bldg-${atm.id}" class="editable-active contenteditable text-xs" contenteditable="true">${atm.building}</div>` : `<div class="break-words leading-tight text-xs">${atm.building}</div>`;
+                const areaField = isEditing ? `<div id="edit-area-${atm.id}" class="editable-active contenteditable text-xs" contenteditable="true">${atm.area}</div>` : `<div class="break-words leading-tight text-xs">${atm.area}</div>`;
+                const lndField = isEditing ? `<div id="edit-lnd-${atm.id}" class="editable-active contenteditable text-xs" contenteditable="true">${atm.landmark}</div>` : `<div class="break-words leading-tight text-xs">${atm.landmark}</div>`;
+                const latField = isEditing ? `<div id="edit-lat-${atm.id}" class="editable-active contenteditable text-xs" contenteditable="true">${atm.lat}</div>` : `<div class="break-all text-xs">${atm.lat}</div>`;
+                const lngField = isEditing ? `<div id="edit-lng-${atm.id}" class="editable-active contenteditable text-xs" contenteditable="true">${atm.lng}</div>` : `<div class="break-all text-xs">${atm.lng}</div>`;
+
+                const atmTypeBadge = isEditing 
+                    ? `<select id="edit-atmtype-${atm.id}" class="border rounded p-1 text-[11px] font-bold bg-white text-slate-700"><option value="ATM" ${atm.atmType==='ATM'?'selected':''}>ATM</option><option value="ADWM" ${atm.atmType==='ADWM'?'selected':''}>ADWM</option></select>` 
+                    : `<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">${atm.atmType}</span>`;
+
+                let phaseOptionsHtml = '';
+                for(let p = 1; p <= 100; p++) {
+                    let pStr = `Phase ${p}`;
+                    phaseOptionsHtml += `<option value="${pStr}" ${atm.phase === pStr ? 'selected' : ''}>${pStr}</option>`;
+                }
+                const phaseBadge = isEditing
+                    ? `<select id="edit-phase-${atm.id}" class="border rounded p-1 text-[11px] font-bold bg-white text-slate-700">${phaseOptionsHtml}</select>`
+                    : `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">${atm.phase || 'Phase 17'}</span>`;
+
+                const currentVendor = atm.vendor || 'NCR';
+                const isCustomVendor = !defaultVendors.includes(currentVendor);
+                const vendorBadge = isEditing 
+                    ? `<div class="flex flex-col gap-1"><select id="edit-vendor-${atm.id}" class="border rounded p-1 text-[11px] font-bold bg-white text-slate-700" onchange="handleVendorChange(this, '${atm.id}')"><option value="NCR" ${currentVendor==='NCR'?'selected':''}>NCR</option><option value="HITACHI" ${currentVendor==='HITACHI'?'selected':''}>HITACHI</option><option value="OKI" ${currentVendor==='OKI'?'selected':''}>OKI</option><option value="FIS" ${currentVendor==='FIS'?'selected':''}>FIS</option><option value="FSS" ${currentVendor==='FSS'?'selected':''}>FSS</option><option value="CMS" ${currentVendor==='CMS'?'selected':''}>CMS</option><option value="Custom" ${isCustomVendor?'selected':''}>Custom</option></select><input type="text" id="vendor-custom-${atm.id}" class="border rounded p-1 text-[11px] bg-white ${isCustomVendor?'':'hidden'}" placeholder="Vendor Name" value="${isCustomVendor?currentVendor:''}"></div>`
+                    : `<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold">Vendor: ${currentVendor}</span>`;
+
+                const mapLinkField = isEditing 
+                    ? `<div class="mt-2"><label class="text-[10px] text-slate-500 block uppercase font-semibold">Location Map Link:</label><input type="text" id="edit-maplink-${atm.id}" class="w-full border rounded p-1.5 text-xs bg-white" placeholder="Paste Google Map Link here" value="${atm.mapLink || ''}"></div>`
+                    : (atm.mapLink ? `<div class="mt-2"><a href="${atm.mapLink}" target="_blank" class="block w-full text-center py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Open Custom Location Link</a></div>` : '');
+
+                const branchBadgeClass = atm.branchName === "Branch Not Found" ? "bg-red-50 border-red-200 text-red-600" : "bg-indigo-50 border-indigo-100 text-indigo-700";
+
+                const statusOptions = ['YES', 'NO', 'NOT AVAILA'];
+                const rampField = isEditing 
+                    ? `<select id="edit-ramp-${atm.id}" class="border rounded p-1 text-[11px] bg-white font-bold w-full">${statusOptions.map(o => `<option value="${o}" ${atm.ramp===o?'selected':''}>${o}</option>`).join('')}</select>`
+                    : `<span class="${atm.ramp === 'YES' ? 'text-green-600' : 'text-red-500'} font-bold">${atm.ramp}</span>`;
+
+                const shutterField = isEditing 
+                    ? `<select id="edit-shutter-${atm.id}" class="border rounded p-1 text-[11px] bg-white font-bold w-full">${statusOptions.map(o => `<option value="${o}" ${atm.shutter===o?'selected':''}>${o}</option>`).join('')}</select>`
+                    : `<span class="${atm.shutter === 'YES' ? 'text-green-600' : 'text-red-500'} font-bold">${atm.shutter}</span>`;
+
+                const caretakerField = isEditing 
+                    ? `<select id="edit-caretaker-${atm.id}" class="border rounded p-1 text-[11px] bg-white font-bold w-full">${statusOptions.map(o => `<option value="${o}" ${atm.caretaker===o?'selected':''}>${o}</option>`).join('')}</select>`
+                    : `<span class="${atm.caretaker === 'YES' ? 'text-green-600' : 'text-red-500'} font-bold">${atm.caretaker}</span>`;
+
+                const esurvField = isEditing 
+                    ? `<select id="edit-esurv-${atm.id}" class="border rounded p-1 text-[11px] bg-white font-bold w-full">${statusOptions.map(o => `<option value="${o}" ${atm.esurv===o?'selected':''}>${o}</option>`).join('')}</select>`
+                    : `<span class="${atm.esurv === 'YES' ? 'text-green-600' : 'text-red-500'} font-bold">${atm.esurv}</span>`;
+
+                let custodiansHtml = '';
+                if(isEditing) {
+                    custodiansHtml += `<div class="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded text-xs">
+                        <div class="flex justify-between items-center mb-1.5"><span class="font-bold text-slate-700">Custodians / Team:</span> <button onclick="addCustodian('${atm.id}')" class="text-blue-600 font-bold hover:underline">+ Add Custodian</button></div>`;
+                    atm.custodians.forEach((c, idx) => {
+                        const standardRoles = ['Service Manager', 'Engineer', 'Custodian'];
+                        const isStandard = standardRoles.includes(c.role);
+                        const roleVal = isStandard ? c.role : 'Custom';
+                        const customVal = isStandard ? '' : c.role;
+
+                        custodiansHtml += `<div class="flex flex-col gap-1.5 mb-2 p-2 bg-white border rounded custodian-row-${atm.id}">
+                            <div class="flex gap-1.5 items-center">
+                                <select id="role-select-${atm.id}-${idx}" class="cust-role border rounded p-1 text-[11px] bg-white flex-1" data-index="${idx}" onchange="handleRoleChange(this, '${atm.id}')">
+                                    <option value="Service Manager" ${roleVal==='Service Manager'?'selected':''}>Service Manager</option>
+                                    <option value="Engineer" ${roleVal==='Engineer'?'selected':''}>Engineer</option>
+                                    <option value="Custodian" ${roleVal==='Custodian'?'selected':''}>Custodian</option>
+                                    <option value="Custom" ${roleVal==='Custom'?'selected':''}>Custom</option>
+                                </select>
+                                <button type="button" onclick="addCustomRoleFromButton('role-select-${atm.id}-${idx}', 'cust-custom-${atm.id}-${idx}')" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] px-1.5 py-1 rounded font-semibold">+ Add</button>
+                                <button onclick="removeCustodian('${atm.id}', ${idx})" class="text-red-500 font-bold px-1.5 text-sm">&times;</button>
+                            </div>
+                            <input type="text" id="cust-custom-${atm.id}-${idx}" class="cust-role-custom border rounded p-1 text-[11px] bg-white ${roleVal==='Custom'?'':'hidden'}" placeholder="Type Custom Role Name" value="${customVal}">
+                            <div class="flex gap-1.5">
+                                <input type="text" class="cust-name border rounded p-1 flex-1 text-[11px] bg-white" placeholder="Name" value="${c.name || ''}">
+                                <input type="text" class="cust-number border rounded p-1 flex-1 text-[11px] bg-white" placeholder="Number" value="${c.number || ''}">
+                            </div>
+                        </div>`;
+                    });
+                    custodiansHtml += `</div>`;
+                } else if(atm.custodians.length > 0) {
+                    custodiansHtml += `<div class="mb-3 p-2 bg-slate-50 border border-slate-100 rounded text-[11px]"><span class="font-bold text-slate-500 block mb-1">Custodians:</span><div class="flex flex-col gap-1.5">`;
+                    atm.custodians.forEach(c => {
+                        const callBtn = c.number ? `<a href="tel:${c.number}" class="inline-flex items-center gap-1 text-[10px] bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded font-semibold transition-colors mt-0.5 w-fit"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>Call</a>` : '';
+                        custodiansHtml += `<div class="bg-white border px-2 py-1.5 rounded text-[11px] text-slate-700 flex justify-between items-center"><div><b>${c.role}:</b> ${c.name || '-'} (${c.number || 'No No.'})</div>${callBtn}</div>`;
+                    });
+                    custodiansHtml += `</div></div>`;
+                }
+
+                const mapUrl = (atm.lat && atm.lat !== '-' && atm.lng && atm.lng !== '-') ? `https://www.google.com/maps?q=${atm.lat},${atm.lng}` : '#';
+
+                html += `
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+                        <div>
+                            <!-- Header Row: ID & Status -->
+                            <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-2">
+                                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span class="text-slate-400 text-xs font-semibold">#${atm.srNo}</span>${atm.id}
+                                </h3>
+                                ${statusBadge}
+                            </div>
+
+                            <!-- Tags Row below ATM ID -->
+                            <div class="flex flex-wrap gap-1.5 mb-3 items-center">
+                                ${atmTypeBadge}
+                                ${vendorBadge}
+                                ${phaseBadge}
+                            </div>
+                            
+                            <div class="mb-3 border ${branchBadgeClass} p-2 rounded text-[10px] font-semibold flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                <span class="break-words leading-tight uppercase">Branch: ${atm.branchCode} - ${atm.branchName}</span>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2 mb-3 text-xs text-slate-800">
+                                <div class="bg-slate-50 p-2 rounded">
+                                    <div class="text-[9px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Building</div>
+                                    ${bldgField}
+                                </div>
+                                <div class="bg-slate-50 p-2 rounded">
+                                    <div class="text-[9px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Area</div>
+                                    ${areaField}
+                                </div>
+                                <div class="bg-slate-50 p-2 rounded">
+                                    <div class="text-[9px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Landmark</div>
+                                    ${lndField}
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-4 gap-2 mb-3 text-[11px] text-center font-medium">
+                                <div class="border border-slate-100 p-1.5 rounded bg-slate-50">
+                                    <span class="block text-[9px] text-slate-400 mb-0.5 uppercase">Ramp</span>
+                                    ${rampField}
+                                </div>
+                                <div class="border border-slate-100 p-1.5 rounded bg-slate-50">
+                                    <span class="block text-[9px] text-slate-400 mb-0.5 uppercase">Shutter</span>
+                                    ${shutterField}
+                                </div>
+                                <div class="border border-slate-100 p-1.5 rounded bg-slate-50">
+                                    <span class="block text-[9px] text-slate-400 mb-0.5 uppercase">Caretakr</span>
+                                    ${caretakerField}
+                                </div>
+                                <div class="border border-slate-100 p-1.5 rounded bg-slate-50">
+                                    <span class="block text-[9px] text-slate-400 mb-0.5 uppercase">E-Surv</span>
+                                    ${esurvField}
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                                <div class="flex items-center gap-1.5 bg-indigo-50/50 p-1.5 rounded border border-indigo-100">
+                                    <span class="text-indigo-400 font-bold">Lat:</span> ${latField}
+                                </div>
+                                <div class="flex items-center gap-1.5 bg-indigo-50/50 p-1.5 rounded border border-indigo-100">
+                                    <span class="text-indigo-400 font-bold">Lng:</span> ${lngField}
+                                </div>
+                            </div>
+
+                            <!-- Map View Button -->
+                            <div class="mb-3">
+                                <a href="${mapUrl}" target="_blank" class="block w-full text-center py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-semibold text-[11px] transition-colors flex items-center justify-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    View on Google Map
+                                </a>
+                                ${mapLinkField}
+                            </div>
+
+                            ${custodiansHtml}
+
+                            <div class="mb-3">
+                                ${isEditing ? `
+                                    <input type="text" 
+                                        class="w-full text-xs p-2 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-slate-50" 
+                                        placeholder="Enter remarks here..." 
+                                        value="${atm.remarks}"
+                                        oninput="updateRemark('${atm.id}', this.value)">
+                                ` : `
+                                    <div class="text-[11px] p-2 bg-slate-50 rounded border border-slate-100 text-slate-700">
+                                        <span class="font-semibold text-slate-400 block text-[9px] uppercase mb-0.5">Remarks:</span>
+                                        ${atm.remarks ? atm.remarks : '<span class="text-slate-400 italic">No remarks</span>'}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 mt-auto no-print">
+                            <button onclick="toggleEdit('${atm.id}')" class="py-2 rounded-lg text-xs font-semibold transition-colors ${isEditing ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}">
+                                ${isEditing ? '💾 Save' : '✏️ Edit'}
+                            </button>
+                            <button onclick="toggleStatus('${atm.id}')" class="py-2 rounded-lg text-xs font-semibold transition-colors ${isComp ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
+                                ${isComp ? '↺ Pending' : '✓ Complete'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div></div>`;
+            return html;
+        }
+
+        function renderApp() {
+            const searchQ = document.getElementById('searchInput').value.toLowerCase();
+            
+            let fullyFiltered = ATMs.filter(a => {
+                if(activeFilters.status.length > 0 && !activeFilters.status.includes(a.status)) return false;
+                if(activeFilters.category.length > 0 && !activeFilters.category.includes(a.category)) return false;
+                if(activeFilters.branches.length > 0 && !activeFilters.branches.includes(a.branchCode)) return false;
+                if(activeFilters.custRoles.length > 0) {
+                    const hasRole = a.custodians.some(c => activeFilters.custRoles.includes(c.role));
+                    if(!hasRole) return false;
+                }
+                return true;
+            });
+
+            const countAll = fullyFiltered.length;
+            const countCompleted = fullyFiltered.filter(a => a.status === 'completed').length;
+            const countPending = countAll - countCompleted;
+            
+            document.getElementById('count-all').innerText = countAll;
+            document.getElementById('count-pending').innerText = countPending;
+            document.getElementById('count-completed').innerText = countCompleted;
+
+            let displayData = fullyFiltered.filter(a => 
+                a.id.toLowerCase().includes(searchQ) || 
+                a.area.toLowerCase().includes(searchQ) || 
+                a.landmark.toLowerCase().includes(searchQ) ||
+                a.building.toLowerCase().includes(searchQ) ||
+                a.branchName.toLowerCase().includes(searchQ) ||
+                a.branchCode.toLowerCase().includes(searchQ) ||
+                a.vendor.toLowerCase().includes(searchQ)
+            );
+
+            if (currentTab === 'pending') displayData = displayData.filter(a => a.status === 'pending');
+            if (currentTab === 'completed') displayData = displayData.filter(a => a.status === 'completed');
+
+            currentFilteredATMs = displayData;
+
+            const matched = displayData.filter(a => a.category === 'matched' && a.branchName !== "Branch Not Found");
+            const notMatched = displayData.filter(a => a.category === 'not-matched' && a.branchName !== "Branch Not Found");
+            const nonAlloted = displayData.filter(a => a.category === 'non-alloted' && a.branchName !== "Branch Not Found");
+            const unknownBranch = displayData.filter(a => a.branchName === "Branch Not Found");
+
+            const container = document.getElementById('mainContainer');
+            let htmlString = '';
+            htmlString += buildSection('✅ Alloted / Matched ATMs', matched, 'bg-emerald-100 border border-emerald-200');
+            htmlString += buildSection('❌ Not Matched ATMs', notMatched, 'bg-red-100 border border-red-200');
+            htmlString += buildSection('⚠️ Non-Alloted ATMs', nonAlloted, 'bg-amber-100 border border-amber-200');
+            htmlString += buildSection('❓ Unknown Branch ATMs', unknownBranch, 'bg-slate-200 border border-slate-300');
+
+            if(displayData.length === 0) {
+                htmlString = `<div class="text-center py-12 text-slate-400 font-medium text-sm border-2 border-dashed border-slate-200 rounded-xl">No ATMs found matching your filters.</div>`;
+            }
+
+            container.innerHTML = htmlString;
+        }
+
+        function exportExcelCustom(selectedCols) {
+            const catOrder = { 'matched': 1, 'not-matched': 2, 'non-alloted': 3 };
+            let exportData = [...currentFilteredATMs].sort((a, b) => (catOrder[a.category] || 99) - (catOrder[b.category] || 99));
+
+            const colMap = {
+                'srNo': 'Total Sr No',
+                'sheetSrNo': 'Sheet Sr No',
+                'atmId': 'ATM ID',
+                'atmType': 'ATM Type',
+                'vendor': 'Vendor Company',
+                'phase': 'Phase',
+                'branch': 'Branch',
+                'category': 'Category',
+                'status': 'Status',
+                'building': 'Building',
+                'area': 'Area',
+                'landmark': 'Landmark',
+                'latlng': 'Latitude / Longitude',
+                'mapLink': 'Map Link',
+                'ramp': 'Ramp',
+                'shutter': 'Shutter',
+                'caretaker': 'Caretaker',
+                'esurv': 'E-Surveillance',
+                'custodians': 'Custodians',
+                'remarks': 'Remarks'
+            };
+
+            let headers = selectedCols.map(c => colMap[c]);
+            let csvContent = "data:text/csv;charset=utf-8,ATM LIST\n" + headers.join(",") + "\n";
+            
+            exportData.forEach((atm, idx) => {
+                const custStr = atm.custodians.map(c => `${c.role}: ${c.name} (${c.number})`).join(' | ');
+                const rowObj = {
+                    'srNo': idx + 1,
+                    'sheetSrNo': atm.srNo,
+                    'atmId': atm.id,
+                    'atmType': atm.atmType,
+                    'vendor': atm.vendor,
+                    'phase': atm.phase,
+                    'branch': `"${atm.branchCode} - ${atm.branchName}"`,
+                    'category': atm.category,
+                    'status': atm.status,
+                    'building': `"${atm.building.replace(/"/g, '""')}"`,
+                    'area': `"${atm.area.replace(/"/g, '""')}"`,
+                    'landmark': `"${atm.landmark.replace(/"/g, '""')}"`,
+                    'latlng': `"${atm.lat}, ${atm.lng}"`,
+                    'mapLink': `"${atm.mapLink || ''}"`,
+                    'ramp': atm.ramp,
+                    'shutter': atm.shutter,
+                    'caretaker': atm.caretaker,
+                    'esurv': atm.esurv,
+                    'custodians': `"${custStr}"`,
+                    'remarks': `"${atm.remarks.replace(/"/g, '""')}"`
+                };
+
+                let row = selectedCols.map(c => rowObj[c]);
+                csvContent += row.join(",") + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `ATM_List_Report_${new Date().toLocaleDateString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Excel Exported!");
+        }
+
+        function exportPDFCustom(selectedCols) {
+            if(!window.jspdf) {
+                alert("PDF Library is still loading. Please try again.");
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.text("ATM LIST", 14, 12);
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 17);
+            
+            const catOrder = { 'matched': 1, 'not-matched': 2, 'non-alloted': 3 };
+            let exportData = [...currentFilteredATMs].sort((a, b) => (catOrder[a.category] || 99) - (catOrder[b.category] || 99));
+
+            const colMap = {
+                'srNo': 'Tot.Sr',
+                'sheetSrNo': 'Sht.Sr',
+                'atmId': 'ATM ID',
+                'atmType': 'Type',
+                'vendor': 'Vendor',
+                'phase': 'Phase',
+                'branch': 'Branch',
+                'category': 'Category',
+                'status': 'Status',
+                'building': 'Building',
+                'area': 'Area',
+                'landmark': 'Landmark',
+                'latlng': 'Lat / Lng',
+                'mapLink': 'Map Link',
+                'ramp': 'Ramp',
+                'shutter': 'Shutter',
+                'caretaker': 'Caretaker',
+                'esurv': 'E-Surv',
+                'custodians': 'Custodians',
+                'remarks': 'Remarks'
+            };
+
+            const head = [selectedCols.map(c => colMap[c])];
+            const body = exportData.map((atm, i) => {
+                const custStr = atm.custodians.map(c => `${c.role}: ${c.name} (${c.number})`).join('\n');
+                const rowObj = {
+                    'srNo': i + 1,
+                    'sheetSrNo': atm.srNo,
+                    'atmId': atm.id,
+                    'atmType': atm.atmType,
+                    'vendor': atm.vendor,
+                    'phase': atm.phase,
+                    'branch': `${atm.branchCode}\n${atm.branchName}`,
+                    'category': atm.category,
+                    'status': atm.status,
+                    'building': atm.building,
+                    'area': atm.area,
+                    'landmark': atm.landmark,
+                    'latlng': `${atm.lat}, ${atm.lng}`,
+                    'mapLink': atm.mapLink || '',
+                    'ramp': atm.ramp,
+                    'shutter': atm.shutter,
+                    'caretaker': atm.caretaker,
+                    'esurv': atm.esurv,
+                    'custodians': custStr,
+                    'remarks': atm.remarks
+                };
+                return selectedCols.map(c => rowObj[c]);
+            });
+
+            doc.autoTable({
+                startY: 20,
+                head: head,
+                body: body,
+                theme: 'grid',
+                styles: { 
+                    fontSize: 6.5, 
+                    cellPadding: 1.5, 
+                    overflow: 'linebreak', 
+                    fillColor: [255, 255, 255],
+                    textColor: [40, 40, 40] 
+                },
+                headStyles: { 
+                    fillColor: [100, 116, 139],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                alternateRowStyles: { 
+                    fillColor: [255, 255, 255]
+                },
+                didParseCell: function (data) {
+                    const catIndex = selectedCols.indexOf('category');
+                    if (catIndex !== -1 && data.section === 'body' && data.column.index === catIndex) {
+                        const category = data.cell.raw;
+                        if (category === 'non-alloted') {
+                            data.cell.styles.textColor = [220, 38, 38];
+                            data.cell.styles.fontStyle = 'bold';
+                        } else if (category === 'not-matched') {
+                            data.cell.styles.textColor = [234, 88, 12];
+                            data.cell.styles.fontStyle = 'bold';
+                        } else if (category === 'matched') {
+                            data.cell.styles.textColor = [22, 163, 74];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                    }
+                }
+            });
+
+            doc.save(`ATM_List_Report_${new Date().toLocaleDateString()}.pdf`);
+            showToast("PDF Downloaded Successfully!");
+        }
+
+        renderApp();
+    </script>
+</body>
+</html>
